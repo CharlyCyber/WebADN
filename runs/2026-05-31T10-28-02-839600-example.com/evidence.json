@@ -1,0 +1,1236 @@
+{
+  "url": "https://example.com",
+  "niche": "tienda de arte digital premium",
+  "generatedAt": "2026-05-31T10:28:42.892Z",
+  "inspection": {
+    "title": "Example Domain",
+    "description": "",
+    "h1": "Example Domain",
+    "technologies": [],
+    "tokens": {
+      "cssVariables": {},
+      "colors": [
+        "rgb(238, 238, 238)",
+        "rgb(51, 68, 136)",
+        "rgb(0, 0, 0)"
+      ],
+      "fonts": [
+        "system-ui, sans-serif"
+      ],
+      "spacingScale": [
+        "16.08px",
+        "16px"
+      ]
+    },
+    "layout": {
+      "counts": {
+        "grid": 0,
+        "flex": 0,
+        "sticky": 0,
+        "fixed": 0,
+        "absolute": 0
+      },
+      "dominant": "Static or custom positioned layout"
+    },
+    "animationHints": [],
+    "gsapDataAttrs": {},
+    "semanticTags": {
+      "header": 0,
+      "main": 0,
+      "section": 0,
+      "article": 0,
+      "nav": 0,
+      "footer": 0,
+      "button": 0,
+      "form": 0,
+      "h1": 1
+    },
+    "ctas": [],
+    "viewport": {
+      "width": 1440,
+      "height": 1100,
+      "bodyHeight": 106
+    },
+    "risks": [
+      "Missing meta description.",
+      "No obvious CTA detected.",
+      "Missing semantic main landmark."
+    ],
+    "visualEvidence": [
+      {
+        "viewport": "desktop",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\desktop-000.png",
+        "screenshotName": "desktop-000.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 27648,
+            "position": {
+              "x": 288,
+              "y": 165,
+              "width": 864,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 288,
+              "y": 250,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\desktop-025.png",
+        "screenshotName": "desktop-025.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 27648,
+            "position": {
+              "x": 288,
+              "y": 165,
+              "width": 864,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 288,
+              "y": 250,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\desktop-050.png",
+        "screenshotName": "desktop-050.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 27648,
+            "position": {
+              "x": 288,
+              "y": 165,
+              "width": 864,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 288,
+              "y": 250,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\desktop-075.png",
+        "screenshotName": "desktop-075.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 27648,
+            "position": {
+              "x": 288,
+              "y": 165,
+              "width": 864,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 288,
+              "y": 250,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\desktop-100.png",
+        "screenshotName": "desktop-100.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 27648,
+            "position": {
+              "x": 288,
+              "y": 165,
+              "width": 864,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 288,
+              "y": 250,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\tablet-000.png",
+        "screenshotName": "tablet-000.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 16013,
+            "position": {
+              "x": 167,
+              "y": 167,
+              "width": 500,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 167,
+              "y": 273,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 127,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\tablet-025.png",
+        "screenshotName": "tablet-025.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 16013,
+            "position": {
+              "x": 167,
+              "y": 167,
+              "width": 500,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 167,
+              "y": 273,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 127,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\tablet-050.png",
+        "screenshotName": "tablet-050.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 16013,
+            "position": {
+              "x": 167,
+              "y": 167,
+              "width": 500,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 167,
+              "y": 273,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 127,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\tablet-075.png",
+        "screenshotName": "tablet-075.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 16013,
+            "position": {
+              "x": 167,
+              "y": 167,
+              "width": 500,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 167,
+              "y": 273,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 127,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\tablet-100.png",
+        "screenshotName": "tablet-100.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 16013,
+            "position": {
+              "x": 167,
+              "y": 167,
+              "width": 500,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 167,
+              "y": 273,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 127,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\mobile-000.png",
+        "screenshotName": "mobile-000.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 7488,
+            "position": {
+              "x": 78,
+              "y": 127,
+              "width": 234,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 78,
+              "y": 275,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 169,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\mobile-025.png",
+        "screenshotName": "mobile-025.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 7488,
+            "position": {
+              "x": 78,
+              "y": 127,
+              "width": 234,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 78,
+              "y": 275,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 169,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\mobile-050.png",
+        "screenshotName": "mobile-050.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 7488,
+            "position": {
+              "x": 78,
+              "y": 127,
+              "width": 234,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 78,
+              "y": 275,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 169,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\mobile-075.png",
+        "screenshotName": "mobile-075.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 7488,
+            "position": {
+              "x": 78,
+              "y": 127,
+              "width": 234,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 78,
+              "y": 275,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 169,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\mobile-100.png",
+        "screenshotName": "mobile-100.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 7488,
+            "position": {
+              "x": 78,
+              "y": 127,
+              "width": 234,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 78,
+              "y": 275,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 169,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\wide-000.png",
+        "screenshotName": "wide-000.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 36864,
+            "position": {
+              "x": 384,
+              "y": 162,
+              "width": 1152,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 384,
+              "y": 247,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\wide-025.png",
+        "screenshotName": "wide-025.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 36864,
+            "position": {
+              "x": 384,
+              "y": 162,
+              "width": 1152,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 384,
+              "y": 247,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\wide-050.png",
+        "screenshotName": "wide-050.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 36864,
+            "position": {
+              "x": 384,
+              "y": 162,
+              "width": 1152,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 384,
+              "y": 247,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\wide-075.png",
+        "screenshotName": "wide-075.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 36864,
+            "position": {
+              "x": 384,
+              "y": 162,
+              "width": 1152,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 384,
+              "y": 247,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-31T10-28-02-839600-example.com\\screenshots\\wide-100.png",
+        "screenshotName": "wide-100.png",
+        "visibleText": [
+          {
+            "level": "H1",
+            "text": "Example Domain"
+          }
+        ],
+        "visibleElements": [
+          {
+            "tag": "h1",
+            "text": "Example Domain",
+            "area": 36864,
+            "position": {
+              "x": 384,
+              "y": 162,
+              "width": 1152,
+              "height": 32
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          },
+          {
+            "tag": "a",
+            "text": "Learn more",
+            "area": 1683,
+            "position": {
+              "x": 384,
+              "y": 247,
+              "width": 80,
+              "height": 21
+            },
+            "background": null,
+            "backgroundImage": null,
+            "transform": null,
+            "opacity": null,
+            "zIndex": null,
+            "position_type": "static"
+          }
+        ],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 106,
+        "viewportHeight": 1080
+      }
+    ],
+    "sections": [],
+    "assets": {
+      "images": [],
+      "videos": [],
+      "fonts": [],
+      "scripts": [],
+      "stylesheets": [],
+      "models3d": [],
+      "inlineSvgCount": 0,
+      "canvasCount": 0,
+      "cssBackgroundImages": [],
+      "suspiciousHeavyAssets": [],
+      "totalNetworkAssets": 0
+    },
+    "cssFeatures": {
+      "effects": [],
+      "cssVariableCount": 0,
+      "totalRules": 4,
+      "complexityScore": 0
+    },
+    "motionRecipes": [],
+    "hoverEffects": [],
+    "webgl": {
+      "canvasCount": 0,
+      "webglCount": 0,
+      "contexts": [],
+      "likely3dLibrary": "Unknown WebGL",
+      "detectedLibraries": [],
+      "performanceRisk": {
+        "level": "low",
+        "risks": []
+      },
+      "shaderDetails": [],
+      "promptRecipe": "No WebGL/canvas detected. Use CSS/DOM animations for visual effects.",
+      "animations": {
+        "uniformsOverTime": {},
+        "canvasAnimations": [],
+        "timeBasedAnimations": [],
+        "domTimeAnimations": [],
+        "timeAnalysis": []
+      }
+    },
+    "styles": {
+      "styleRules": [
+        {
+          "selector": "body",
+          "css": "body { background: rgb(238, 238, 238); width: 60vw; margin: 15vh auto; font-family: system-ui, sans-serif; }",
+          "properties": {
+            "background-image": "initial",
+            "background-position-x": "initial",
+            "background-position-y": "initial",
+            "background-size": "initial",
+            "background-repeat": "initial",
+            "background-attachment": "initial",
+            "background-origin": "initial",
+            "background-clip": "initial",
+            "background-color": "rgb(238, 238, 238)",
+            "width": "60vw",
+            "margin-top": "15vh",
+            "margin-right": "auto",
+            "margin-bottom": "15vh",
+            "margin-left": "auto",
+            "font-family": "system-ui, sans-serif"
+          },
+          "origin": "inline",
+          "sheet": null
+        },
+        {
+          "selector": "h1",
+          "css": "h1 { font-size: 1.5em; }",
+          "properties": {
+            "font-size": "1.5em"
+          },
+          "origin": "inline",
+          "sheet": null
+        },
+        {
+          "selector": "div",
+          "css": "div { opacity: 0.8; }",
+          "properties": {
+            "opacity": "0.8"
+          },
+          "origin": "inline",
+          "sheet": null
+        },
+        {
+          "selector": "a:link, a:visited",
+          "css": "a:link, a:visited { color: rgb(51, 68, 136); }",
+          "properties": {
+            "color": "rgb(51, 68, 136)"
+          },
+          "origin": "inline",
+          "sheet": null
+        }
+      ],
+      "keyframes": [],
+      "mediaQueries": [],
+      "fontFaces": [],
+      "cssVariableMap": {},
+      "totalRuleCount": 4,
+      "externalSheets": []
+    },
+    "sectionStructure": [],
+    "downloadedAssets": {
+      "images": [],
+      "fonts": []
+    }
+  },
+  "motionAnalysis": {
+    "enabled": false,
+    "source": "none",
+    "findings": [
+      "No video supplied. Motion guidance is inferred from DOM animation hints and the knowledge matrix."
+    ],
+    "mappedTechniques": [
+      "lerp",
+      "premiumEase",
+      "requestAnimationFrame"
+    ]
+  },
+  "conversionPlan": {},
+  "knowledgeMatrix": {},
+  "visualRhythm": {},
+  "designLanguage": {},
+  "fidelityScore": {},
+  "fidelityLevel": "surgical",
+  "timings": {
+    "scraper": 40802,
+    "knowledgeMatrix": 1,
+    "motionAnalysis": 1,
+    "conversionStrategy": 8,
+    "visualRhythm": 5,
+    "designLanguage": 3,
+    "fidelityScore": 2
+  }
+}

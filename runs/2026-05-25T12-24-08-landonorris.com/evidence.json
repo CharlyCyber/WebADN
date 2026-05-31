@@ -1,0 +1,547 @@
+{
+  "url": "https://landonorris.com/",
+  "niche": "Taller de motos",
+  "generatedAt": "2026-05-25T12:25:22.227Z",
+  "inspection": {
+    "title": "",
+    "description": "",
+    "h1": "",
+    "technologies": [],
+    "tokens": {
+      "cssVariables": {},
+      "colors": [],
+      "fonts": [],
+      "spacingScale": []
+    },
+    "layout": {
+      "counts": {
+        "grid": 0,
+        "flex": 0,
+        "sticky": 0,
+        "fixed": 0,
+        "absolute": 0
+      },
+      "dominant": "Static or custom positioned layout"
+    },
+    "animationHints": [],
+    "semanticTags": {
+      "header": 0,
+      "main": 0,
+      "section": 0,
+      "article": 0,
+      "nav": 0,
+      "footer": 0,
+      "button": 0,
+      "form": 0,
+      "h1": 0
+    },
+    "ctas": [],
+    "viewport": {
+      "width": 1440,
+      "height": 1100,
+      "bodyHeight": 1100
+    },
+    "risks": [
+      "Missing visible H1 in initial DOM.",
+      "Missing meta description.",
+      "No obvious CTA detected.",
+      "Missing semantic main landmark."
+    ],
+    "visualEvidence": [
+      {
+        "viewport": "desktop",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\desktop-000.png",
+        "screenshotName": "desktop-000.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1100,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\desktop-025.png",
+        "screenshotName": "desktop-025.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1100,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\desktop-050.png",
+        "screenshotName": "desktop-050.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1100,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\desktop-075.png",
+        "screenshotName": "desktop-075.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1100,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "desktop",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\desktop-100.png",
+        "screenshotName": "desktop-100.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1100,
+        "viewportHeight": 1100
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\tablet-000.png",
+        "screenshotName": "tablet-000.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1112,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\tablet-025.png",
+        "screenshotName": "tablet-025.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1112,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\tablet-050.png",
+        "screenshotName": "tablet-050.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1112,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\tablet-075.png",
+        "screenshotName": "tablet-075.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1112,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "tablet",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\tablet-100.png",
+        "screenshotName": "tablet-100.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1112,
+        "viewportHeight": 1112
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\mobile-000.png",
+        "screenshotName": "mobile-000.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 844,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\mobile-025.png",
+        "screenshotName": "mobile-025.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 844,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\mobile-050.png",
+        "screenshotName": "mobile-050.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 844,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\mobile-075.png",
+        "screenshotName": "mobile-075.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 844,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "mobile",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\mobile-100.png",
+        "screenshotName": "mobile-100.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 844,
+        "viewportHeight": 844
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 0,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\wide-000.png",
+        "screenshotName": "wide-000.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1080,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 25,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\wide-025.png",
+        "screenshotName": "wide-025.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1080,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 50,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\wide-050.png",
+        "screenshotName": "wide-050.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1080,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 75,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\wide-075.png",
+        "screenshotName": "wide-075.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1080,
+        "viewportHeight": 1080
+      },
+      {
+        "viewport": "wide",
+        "scrollPercent": 100,
+        "scrollY": 0,
+        "screenshotPath": "C:\\Users\\Charli\\Documents\\Proyectos\\Code Web Extractor\\runs\\2026-05-25T12-24-08-landonorris.com\\screenshots\\wide-100.png",
+        "screenshotName": "wide-100.png",
+        "visibleText": [],
+        "visibleElements": [],
+        "dominantLayoutSignals": [],
+        "bodyHeight": 1080,
+        "viewportHeight": 1080
+      }
+    ],
+    "sections": [],
+    "assets": {
+      "images": [],
+      "videos": [],
+      "fonts": [],
+      "scripts": [],
+      "stylesheets": [],
+      "models3d": [],
+      "inlineSvgCount": 0,
+      "canvasCount": 0,
+      "cssBackgroundImages": [],
+      "suspiciousHeavyAssets": [],
+      "totalNetworkAssets": 0
+    },
+    "cssFeatures": {
+      "effects": [],
+      "cssVariableCount": 0,
+      "totalRules": 0,
+      "complexityScore": 0
+    },
+    "motionRecipes": [],
+    "hoverEffects": [],
+    "webgl": {
+      "canvasCount": 0,
+      "webglCount": 0,
+      "contexts": [],
+      "likely3dLibrary": "Unknown WebGL",
+      "detectedLibraries": [],
+      "performanceRisk": {
+        "level": "low",
+        "risks": []
+      },
+      "promptRecipe": "No WebGL/canvas detected. Use CSS/DOM animations for visual effects."
+    },
+    "styles": {
+      "styleRules": [],
+      "keyframes": [],
+      "mediaQueries": [],
+      "fontFaces": [],
+      "cssVariableMap": {},
+      "totalRuleCount": 0,
+      "externalSheets": []
+    },
+    "sectionStructure": [],
+    "downloadedAssets": {
+      "images": [],
+      "fonts": []
+    }
+  },
+  "motionAnalysis": {
+    "enabled": false,
+    "source": "none",
+    "findings": [
+      "No video supplied. Motion guidance is inferred from DOM animation hints and the knowledge matrix."
+    ],
+    "mappedTechniques": [
+      "lerp",
+      "premiumEase",
+      "requestAnimationFrame"
+    ]
+  },
+  "conversionPlan": {
+    "paradigm": "Value first, spectacle second.",
+    "pushbacks": [
+      "Strengthen the hero H1 so the value proposition is understandable without scrolling.",
+      "Add a primary above-the-fold CTA with concrete commercial intent.",
+      "Correct semantic structure with one main landmark and one clear H1 for SEO and assistive tech.",
+      "Resolve extraction risk: Missing visible H1 in initial DOM.",
+      "Resolve extraction risk: Missing meta description.",
+      "Resolve extraction risk: No obvious CTA detected.",
+      "Resolve extraction risk: Missing semantic main landmark."
+    ],
+    "requiredBlocks": [
+      "Hero with niche-specific offer for Taller de motos, a concise proof point, and one primary CTA.",
+      "Trust block near the first friction point: testimonials, metrics, client logos, or before/after proof.",
+      "Offer explanation section that makes the buying path obvious.",
+      "Conversion-focused contact or booking flow with minimal fields.",
+      "Accessible footer with business identity, navigation, and legal links."
+    ],
+    "performanceBudget": {
+      "lcp": "< 2.5s",
+      "totalLoad": "< 5s",
+      "jsBudget": "Keep route-level JS lean; lazy-load WebGL and heavy animation bundles.",
+      "motion": "Respect prefers-reduced-motion and pause offscreen animation."
+    },
+    "motionDirectives": [
+      "Use restrained reveal animations with cubic-bezier(0.22, 1, 0.36, 1) and clear CTA direction."
+    ],
+    "accessibility": [
+      "Use semantic HTML landmarks and descriptive accessible names.",
+      "Maintain WCAG AA contrast for text over glass, video, gradients, and WebGL canvases.",
+      "Keyboard states must be visible and match hover affordances.",
+      "Provide reduced-motion alternatives for scroll-linked animation."
+    ],
+    "seo": [
+      "One clear H1, metadata aligned with the offer, structured headings, and descriptive link text.",
+      "Render core content server-side or statically where possible.",
+      "Reserve canvas/WebGL for enhancement, not for critical copy."
+    ]
+  },
+  "knowledgeMatrix": {
+    "interactions": {
+      "magneticCursor": "Pointer target interpolation using lerp(current, target, 0.12) with reduced-motion fallback and hit-area constraints.",
+      "lerp": "Linear interpolation: next = current + (target - current) * alpha. Use alpha between 0.08 and 0.18 for premium UI easing.",
+      "inverseKinematics": "Chain-based motion where parent/child transforms solve toward a target; useful for articulated menus, ribbons, and cursor trails.",
+      "progressivePixelScroll": "Scroll progress maps to pixelation, blur, or shader uniforms, ideally throttled through requestAnimationFrame."
+    },
+    "visualEffects": {
+      "backdropFilters": "Layer translucent surfaces with backdrop-filter: blur() and contrast(), but keep text contrast measurable.",
+      "dynamicClipPaths": "Use clip-path polygons or inset() transitions to reveal content without layout reflow.",
+      "borderBeams": "Conic-gradient border animation masked to the border box; pause offscreen and avoid large repaint regions.",
+      "alphaMaskedMarquee": "Use mask-image linear gradients on marquee edges so infinite movement fades naturally.",
+      "flashlight": "Pointer-fed radial-gradient spotlight stored in CSS variables, with keyboard and reduced-motion equivalents."
+    },
+    "webgl3d": {
+      "shaders": "Fragment shaders color pixels; vertex shaders deform geometry. Expose uniforms for scroll, time, pointer, and theme.",
+      "noise": "Perlin/Simplex noise generates organic displacement, liquid surfaces, grain, and hover distortions.",
+      "gpuOptimization": "Promote only moving layers with will-change, batch reads/writes, and keep animation work in requestAnimationFrame."
+    },
+    "animationMath": {
+      "premiumEase": "cubic-bezier(0.22, 1, 0.36, 1)",
+      "fastOut": "cubic-bezier(0.16, 1, 0.3, 1)",
+      "scrollDamping": "targetScroll += (nativeScroll - targetScroll) * 0.1",
+      "shaderUniforms": "u_time, u_scrollProgress, u_pointer, u_velocity, u_aspect"
+    }
+  },
+  "visualRhythm": {
+    "sectionCountEstimate": 1,
+    "stickySceneEstimate": false,
+    "visualDensityByScroll": [
+      {
+        "scrollPercent": 0,
+        "elementCount": 0,
+        "headingCount": 0,
+        "totalArea": 0,
+        "hasBackground": 0
+      },
+      {
+        "scrollPercent": 25,
+        "elementCount": 0,
+        "headingCount": 0,
+        "totalArea": 0,
+        "hasBackground": 0
+      },
+      {
+        "scrollPercent": 50,
+        "elementCount": 0,
+        "headingCount": 0,
+        "totalArea": 0,
+        "hasBackground": 0
+      },
+      {
+        "scrollPercent": 75,
+        "elementCount": 0,
+        "headingCount": 0,
+        "totalArea": 0,
+        "hasBackground": 0
+      },
+      {
+        "scrollPercent": 100,
+        "elementCount": 0,
+        "headingCount": 0,
+        "totalArea": 0,
+        "hasBackground": 0
+      }
+    ],
+    "contrastMoodByScroll": [
+      {
+        "scrollPercent": 0,
+        "mood": "mixed",
+        "darkRatio": 0
+      },
+      {
+        "scrollPercent": 25,
+        "mood": "mixed",
+        "darkRatio": 0
+      },
+      {
+        "scrollPercent": 50,
+        "mood": "mixed",
+        "darkRatio": 0
+      },
+      {
+        "scrollPercent": 75,
+        "mood": "mixed",
+        "darkRatio": 0
+      },
+      {
+        "scrollPercent": 100,
+        "mood": "mixed",
+        "darkRatio": 0
+      }
+    ],
+    "majorTransitions": [],
+    "perViewport": {
+      "desktop": {
+        "sectionCountEstimate": 1,
+        "majorTransitions": [],
+        "elementCountAvg": 0
+      },
+      "tablet": {
+        "sectionCountEstimate": 1,
+        "majorTransitions": [],
+        "elementCountAvg": 0
+      },
+      "mobile": {
+        "sectionCountEstimate": 1,
+        "majorTransitions": [],
+        "elementCountAvg": 0
+      },
+      "wide": {
+        "sectionCountEstimate": 1,
+        "majorTransitions": [],
+        "elementCountAvg": 0
+      }
+    },
+    "responsiveDelta": {
+      "desktopVsMobile": {
+        "sectionDelta": 0,
+        "elementDensityDelta": 0
+      },
+      "desktopVsTablet": {
+        "sectionDelta": 0,
+        "elementDensityDelta": 0
+      }
+    }
+  },
+  "designLanguage": {
+    "label": "contemporary digital",
+    "confidence": 0.3,
+    "signals": [],
+    "allScores": {}
+  },
+  "fidelityScore": {
+    "overall": 30,
+    "label": "Minimal extraction",
+    "breakdown": {
+      "visualCoverage": 0.9,
+      "domCoverage": 0.3,
+      "tokenConfidence": 0,
+      "motionConfidence": 0.1,
+      "interactionConfidence": 0.1,
+      "responsiveConfidence": 0.9,
+      "assetConfidence": 0,
+      "cssConfidence": 0,
+      "webglConfidence": 0.5
+    },
+    "missingEvidence": [
+      "token confidence",
+      "motion confidence",
+      "interaction confidence",
+      "asset confidence",
+      "css confidence"
+    ]
+  }
+}
