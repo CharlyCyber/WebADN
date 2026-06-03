@@ -109,7 +109,7 @@ export function buildCompactPrompt(fullText, evidence, niche, url) {
   if (finalPrompt) {
     parts.push(finalPrompt);
   } else {
-    parts.push(`# Compact Surgical Prompt\n\nBuild a premium site for niche: "${niche}".\nReference: ${url}\n`);
+    parts.push(`# Compact Surgical Prompt\n\nBuild an evidence-matched site for niche: "${niche}".\nReference: ${url}\nEvery visual, motion, typography, and layout decision must map to extracted evidence. Do not invent a generic landing page.\n`);
   }
 
   const tokenBlock = ["## Design Tokens"];
@@ -301,5 +301,4 @@ export async function updateRunsIndex() {
 }
 
 export { RUNS_DIR };
-
 

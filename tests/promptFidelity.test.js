@@ -58,6 +58,13 @@ describe("buildCompactPrompt", () => {
     assert.ok(result.includes("Agency XYZ"), "Niche should appear in output");
   });
 
+  it("fallback prompt is evidence-matched instead of generic premium wording", () => {
+    const result = buildCompactPrompt("", makeEvidence(), "Moto Shop", "https://x.com");
+    assert.ok(result.includes("evidence-matched"), "Should require evidence-matched output");
+    assert.ok(result.includes("Do not invent a generic landing page"), "Should forbid generic landing output");
+    assert.ok(!result.includes("Build a premium site"), "Should not use generic premium-site fallback");
+  });
+
   it("includes section skeleton with class selectors", () => {
     const result = buildCompactPrompt("", makeEvidence(), "SaaS", "https://x.com");
     assert.ok(result.includes(".hero-section"), "Should contain concrete class selector");

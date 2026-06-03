@@ -156,6 +156,7 @@ function inferMotionRecipes(samples, candidates) {
     const xDelta = last.boundingBox.x - first.boundingBox.x;
     const opacityDelta = last.opacity - first.opacity;
     const scrollRange = last.scrollPercent - first.scrollPercent;
+    const keyframes = buildScrollKeyframes(points);
 
     if (Math.abs(yDelta) > 30) {
       const scrollDelta = Math.abs(last.scrollY - first.scrollY) || 1;
@@ -174,6 +175,7 @@ function inferMotionRecipes(samples, candidates) {
         xDelta: Math.round(xDelta),
         parallaxRatio: Math.round(parallaxRatio * 100) / 100,
         opacity: first.opacity !== last.opacity ? `${first.opacity} -> ${last.opacity}` : null,
+        keyframes,
         implementation: type === "sticky-pin"
           ? "CSS position: sticky with scroll-linked animation"
           : type === "scroll-parallax"
@@ -193,6 +195,7 @@ function inferMotionRecipes(samples, candidates) {
           tag: candidate.tag,
           range: `${fadeStart.scrollPercent}-${fadeEnd.scrollPercent}%`,
           opacityRange: `${fadeStart.opacity} -> ${fadeEnd.opacity}`,
+          keyframes,
           implementation: "GSAP ScrollTrigger opacity tween or CSS scroll-timeline"
         });
       }
@@ -207,6 +210,7 @@ function inferMotionRecipes(samples, candidates) {
           tag: candidate.tag,
           range: `${first.scrollPercent}-${last.scrollPercent}%`,
           scaleRange: `${first.transformMatrix.scaleX} -> ${last.transformMatrix.scaleX}`,
+          keyframes,
           implementation: "GSAP ScrollTrigger scale tween"
         });
       }
@@ -214,6 +218,37 @@ function inferMotionRecipes(samples, candidates) {
   }
 
   return [...new Map(recipes.map((r) => [r.target, r])).values()];
+}
+
+function buildScrollKeyframes(points) {
+  if (!points.length) return [];
+
+  const indexes = [...new Set([
+    0,
+    Math.floor((points.length - 1) * 0.25),
+    Math.floor((points.length - 1) * 0.5),
+    Math.floor((points.length - 1) * 0.75),
+    points.length - 1
+  ])];
+
+  return indexes.map((index) => {
+    const point = points[index];
+    const matrix = point.transformMatrix || {};
+    return {
+      scrollPercent: point.scrollPercent,
+      x: point.boundingBox.x,
+      y: point.boundingBox.y,
+      width: point.boundingBox.width,
+      height: point.boundingBox.height,
+      opacity: point.opacity,
+      translateX: matrix.translateX ?? null,
+      translateY: matrix.translateY ?? null,
+      scaleX: matrix.scaleX ?? null,
+      scaleY: matrix.scaleY ?? null,
+      visibleRatio: point.visibleRatio,
+      transform: point.transform
+    };
+  });
 }
 
 function getSampleCount(preset) {

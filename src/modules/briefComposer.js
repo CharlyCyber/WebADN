@@ -219,6 +219,28 @@ ${webglLine}
 Adaptation rule: keep proportions, spacing rhythm, layering, animation timing, scroll behavior, and component silhouettes. Replace content and imagery with original niche-specific material.`;
 }
 
+function formatMotionKeyframes(keyframes = []) {
+  return keyframes
+    .slice(0, 5)
+    .map((frame) => {
+      const parts = [
+        `${frame.scrollPercent}%`,
+        `pos(${frame.x}, ${frame.y})`,
+        `${frame.width}x${frame.height}`,
+        `opacity ${frame.opacity}`
+      ];
+      if (frame.translateX !== null || frame.translateY !== null) {
+        parts.push(`translate(${frame.translateX ?? 0}, ${frame.translateY ?? 0})`);
+      }
+      if (frame.scaleX !== null || frame.scaleY !== null) {
+        parts.push(`scale(${frame.scaleX ?? 1}, ${frame.scaleY ?? 1})`);
+      }
+      parts.push(`visible ${frame.visibleRatio}`);
+      return parts.join(" | ");
+    })
+    .join(" -> ");
+}
+
 export function composeMegaBrief(evidence, fidelityLevel = "standard") {
   const trimmed = trimEvidence(evidence, fidelityLevel);
   const { inspection, visualRhythm, conversionPlan, niche, url } = trimmed;
@@ -288,12 +310,12 @@ function composeDnaSummary(inspection, designLanguage, profile) {
 
 **Stack:** ${technologies.length ? technologies.join(", ") : "No explicit framework signatures; build lean"}
 **Layout:** ${layout}
-**Typography:** ${fonts.length ? fonts.join(", ") : "Premium sans/serif pairing recommended"}
-**Palette:** ${colors.length ? colors.slice(0, 8).join(", ") : "Restrained neutral base with one accent"}
+**Typography:** ${fonts.length ? fonts.join(", ") : "No reliable font evidence extracted"}
+**Palette:** ${colors.length ? colors.slice(0, 8).join(", ") : "No reliable palette evidence extracted"}
 **Effects:** ${effects || "No advanced CSS effect evidence"}
 **Motion:** ${motion}
 **Design Language:** ${designLanguage.label}
-**Key Differentiators:** ${designLanguage.signals.slice(0, 3).join(", ") || "Clean, structured layout with subtle enhancements"}`;
+**Key Differentiators:** ${designLanguage.signals.slice(0, 3).join(", ") || "Insufficient visual-language evidence; rely on extracted sections, tokens, screenshots, and CSS rules only"}`;
 }
 
 function composeDesignTokens(inspection) {
@@ -327,7 +349,7 @@ function composeDesignTokens(inspection) {
     output += `\n## Colors\n${colors.map((c) => `- ${c}`).join("\n")}\n`;
   }
   if (!hasClassified && !colors.length) {
-    output += `\n## Colors\n- Define a restrained palette with accessible contrast\n`;
+    output += `\n## Colors\n- No reliable color evidence extracted. Do not invent a palette; rerun with surgical capture or derive colors from screenshots before implementation.\n`;
   }
 
   if (typeScale.length) {
@@ -342,11 +364,11 @@ function composeDesignTokens(inspection) {
     output += `\n## Typography\n${fonts.map((f) => `- ${f}`).join("\n")}\n`;
   }
   if (!fonts.length && !typeScale.length) {
-    output += `\n## Typography\n- Use a performant premium serif/sans pairing\n`;
+    output += `\n## Typography\n- No reliable font evidence extracted. Do not invent a pairing; use only detected font assets or request a visual/manual font pass.\n`;
   }
 
   output += `\n## Spacing Scale\n`;
-  output += spacing.length ? spacing.map((s) => `- ${s}`).join("\n") : "- Use an 8px-based scale with fluid section spacing";
+  output += spacing.length ? spacing.map((s) => `- ${s}`).join("\n") : "- No reliable spacing evidence extracted. Preserve section dimensions from screenshots instead of using a generic scale.";
   output += `\n`;
 
   if (Object.keys(allVars).length > 3) {
@@ -372,7 +394,7 @@ function composeCssArchitecture(inspection, fidelityLevel = "standard") {
   if (!styles) {
     return `# 4. CSS Architecture
 
-No style rules extracted. Use standard CSS architecture with custom properties and a mobile-first approach.`;
+No CSSOM style rules were extracted. Do not invent a generic CSS architecture; use sectionStructure computed styles, visual screenshots, and downloaded stylesheets as the source of truth, or rerun in surgical mode.`;
   }
 
   const isFull = fidelityLevel === "surgical";
@@ -483,6 +505,10 @@ function composeComponentArchitecture(inspection) {
     components.push("Minimal HTML overlay for text/content");
   }
 
+  if (!components.length) {
+    components.push("Evidence-limited component map: derive components from sectionStructure, screenshots, and CSS selectors before building");
+  }
+
   return `# 5. Component Architecture
 
 Build these components:
@@ -522,13 +548,13 @@ WebGL-centric layout detected. Build as follows:
 - **Styling:** Transparent backgrounds, backdrop-filter: blur() for frosted glass effect
 
 ## Section 3: Footer
-- **Standard footer** with business identity and legal links
+- **Footer/closing frame:** Build only if the reference has footer evidence; otherwise create a minimal accessible closing section in the same visual grammar.
 
 **Note:** This site prioritizes 3D/visual experience over traditional section-based layout. Adapt to your niche by changing overlay content while preserving the WebGL layer.`;
     }
     return `# 6. Section-by-Section Build Spec
 
-No section map available. Build a standard landing with: hero, proof, showcase, contact, footer.`;
+No section map available. Do not invent a default landing structure. Reconstruct from visualEvidence screenshots, DOM landmarks, and extracted selectors; if those are missing, rerun extraction in surgical mode.`;
   }
 
   let output = `# 6. Section-by-Section Build Spec (${sections.length} sections detected, ${isFull ? "full detail" : "key elements"})\n`;
@@ -686,6 +712,7 @@ function composeMotionTimeline(inspection) {
       if (recipe.yDelta) output += `  Y movement: ${recipe.yDelta}px\n`;
       if (recipe.parallaxRatio) output += `  Parallax ratio: ${recipe.parallaxRatio}\n`;
       if (recipe.opacity) output += `  Opacity: ${recipe.opacity}\n`;
+      if (recipe.keyframes?.length) output += `  Observed scroll keyframes: ${formatMotionKeyframes(recipe.keyframes)}\n`;
       output += `  Implementation: ${recipe.implementation}\n`;
     }
     output += "\n";
@@ -789,7 +816,7 @@ function composeAssetRequirements(inspection) {
   if (!assets) {
     return `# 9. Asset Requirements
 
-No asset manifest available. Plan for: hero image, 3-5 content images, logo SVG, 2 web fonts, background textures if needed.`;
+No asset manifest available. Do not assume hero images, logos, fonts, or decorative textures; use only assets detected in screenshots/CSS or provide original niche assets that match the observed composition.`;
   }
 
   let output = `# 9. Asset Requirements\n\n`;
@@ -937,7 +964,7 @@ The implementation is not accepted unless:
 - Primary CTA is visible above the fold on desktop and mobile.
 - WCAG AA contrast maintained on all text surfaces.
 - Page loads in under 5 seconds on 3G Fast.
-- ${motionCount > 0 ? `All ${motionCount} motion patterns are recreated with equivalent feel.` : "Subtle animations enhance, not distract from, the offer."}`;
+- ${motionCount > 0 ? `All ${motionCount} motion patterns are recreated with equivalent feel.` : "No unobserved motion is added; use only extracted CSS transitions/keyframes/effects or document the missing evidence."}`;
 }
 
 function composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile) {
@@ -951,8 +978,8 @@ function composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile) {
   const gsapDataAttrs = inspection.gsapDataAttrs || {};
   const technologies = inspection.technologies || [];
 
-  const formattedColors = colors.slice(0, 8).join(", ") || "accessible neutral base";
-  const formattedFonts = fonts.slice(0, 4).join(" | ") || "premium serif/sans pairing";
+  const formattedColors = colors.slice(0, 8).join(", ") || "no reliable color evidence";
+  const formattedFonts = fonts.slice(0, 4).join(" | ") || "no reliable font evidence";
 
   const hasGsap = technologies.some(t => t.includes("GSAP"));
   const hasScrollTrigger = technologies.some(t => t.includes("ScrollTrigger"));
@@ -1084,6 +1111,7 @@ function composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile) {
       motionBlueprint += `Recipe ${idx + 1}: ${recipe.type.toUpperCase()}
 - Target: \`${recipe.target}\` (${recipe.tag})
 - Scroll Range: ${recipe.range || "0-100%"}
+${recipe.keyframes?.length ? `- Observed keyframes: ${formatMotionKeyframes(recipe.keyframes)}\n` : ""}
 \`\`\`javascript
 ${gsapSnippet || `// Implement: ${recipe.implementation}`}
 \`\`\`\n\n`;
@@ -1149,7 +1177,7 @@ ${gsapSnippet || `// Implement: ${recipe.implementation}`}
   return `# 15. Final Agent Prompt
 
 \`\`\`text
-You are an Awwwards-winning frontend developer. Build a premium site for: "${niche}".
+You are an Awwwards-winning frontend developer. Build an evidence-matched site for: "${niche}".
 
 Reference: ${url}
 
@@ -1157,6 +1185,14 @@ Reference: ${url}
 - Design Language: ${designLanguage.label}
 - Colors: ${formattedColors}
 - Fonts: ${formattedFonts}
+- Color roles: ${concreteColors || "use extracted palette only"}
+- Type scale: ${concreteType || "use extracted font families and computed sizes"}
+- Effects to recreate: ${concreteEffects || "only effects listed in CSS architecture"}
+
+=== FIDELITY TARGET ===
+Target 80-90% resemblance in layout rhythm, layer order, typography scale, palette roles, motion timing, scroll behavior, hover feel, and WebGL/canvas treatment. Do not settle for a generic premium landing page. Every major visual choice must map back to an observed selector, token, screenshot, motion recipe, CSS feature, or WebGL finding in this brief.
+
+Do not copy original brand assets, logos, names, proprietary images, or text. Replace them with original "${niche}" content while preserving the reference's composition and interaction grammar.
 
 ${cssVarsBlueprint}
 ${sectionsBlueprint}
@@ -1165,7 +1201,7 @@ ${motionBlueprint}
 ${hoverBlueprint}
 === BOILERPLATE SETUP ===
 \`\`\`bash
-npm install gsap${hasLenis ? " lenis" : ""}
+npm install ${installPackages.join(" ")}
 \`\`\`
 
 \`\`\`javascript
@@ -1185,7 +1221,9 @@ ${lenisSetup}
 5. WCAG AA contrast on all text surfaces.
 6. Primary easing: cubic-bezier(0.22, 1, 0.36, 1).
 7. Scroll-linked animations use scrub:1 unless noted otherwise.
-8. Do not copy original text — adapt all copy to "${niche}" while preserving class structure and visual styling.
+8. Preserve class/selector structure as a build blueprint, but rename implementation classes only after matching the visual result.
+9. Do not copy original text or assets. Adapt all copy to "${niche}" while preserving visual grammar.
+10. Include a short implementation note beside each major component explaining which extracted evidence it recreates.
 \`\`\`
 `;
 }
