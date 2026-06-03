@@ -1,0 +1,8 @@
+node_modules/
+runs/
+!runs/index.json
+*.log
+server.err
+.env
+.DS_Store
+Thumbs.db
