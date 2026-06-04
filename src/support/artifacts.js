@@ -67,7 +67,7 @@ export async function ensureRunFolders(paths) {
 
 export async function saveEvidence(runPath, evidence) {
   const filePath = join(runPath, "evidence.json");
-  await writeFile(filePath, JSON.stringify(evidence, null, 2), "utf8");
+  await writeFile(filePath, JSON.stringify(evidence), "utf8");
   return filePath;
 }
 
@@ -82,7 +82,7 @@ export async function savePrompt(runPath, prompt, evidence, niche, url) {
 
   const structured = parsePromptSections(sanitized);
   const jsonPath = join(runPath, "prompt.json");
-  await writeFile(jsonPath, JSON.stringify(structured, null, 2), "utf8");
+  await writeFile(jsonPath, JSON.stringify(structured), "utf8");
 
   return filePath;
 }
@@ -156,11 +156,12 @@ export function buildCompactPrompt(fullText, evidence, niche, url) {
 }
 
 function extractFinalPrompt(text) {
-  const match = text.match(/# 15\. Final Agent Prompt[\s\S]*?(?=\n#\s+\d|$)/);
-  if (match) return match[0].trim();
-  const matchAlt = text.match(/# 15\. Final Agent Prompt[\s\S]*/);
-  if (matchAlt) return matchAlt[0].trim();
-  return null;
+  const marker = "# 15. Final Agent Prompt";
+  const idx = text.indexOf(marker);
+  if (idx === -1) return null;
+  const endIdx = text.indexOf("\n# ", idx + 5);
+  const content = endIdx === -1 ? text.slice(idx) : text.slice(idx, endIdx);
+  return content.trim();
 }
 
 function parsePromptSections(text) {
@@ -256,6 +257,17 @@ export async function pruneOldRuns(maxRuns = 20) {
   }
 }
 
+export async function saveRunMeta(runPath, evidence) {
+  const meta = {
+    url: evidence.url,
+    niche: evidence.niche,
+    generatedAt: evidence.generatedAt,
+    fidelityScore: evidence.fidelityScore?.overall || 0,
+    technologies: (evidence.inspection?.technologies || []).slice(0, 5),
+  };
+  await writeFile(join(runPath, "run.json"), JSON.stringify(meta), "utf8");
+}
+
 export async function updateRunsIndex() {
   try {
     const entries = readdirSync(RUNS_DIR)
@@ -269,15 +281,30 @@ export async function updateRunsIndex() {
       })
       .filter(Boolean)
       .filter(entry => entry.isDirectory)
-      .sort((a, b) => b.mtime.getTime() - a.mtime.getTime()); // Más recientes primero
+      .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 
     const runs = [];
     const { readFileSync, writeFileSync } = await import("node:fs");
 
     for (const entry of entries) {
       try {
-        const evidencePath = join(RUNS_DIR, entry.name, "evidence.json");
-        if (existsSync(evidencePath)) {
+        const entryPath = join(RUNS_DIR, entry.name);
+        const metaPath = join(entryPath, "run.json");
+        const evidencePath = join(entryPath, "evidence.json");
+
+        let meta;
+        if (existsSync(metaPath)) {
+          meta = JSON.parse(readFileSync(metaPath, "utf8"));
+          runs.push({
+            path: entry.name,
+            domain: new URL(meta.url).hostname,
+            url: meta.url,
+            date: meta.generatedAt || entry.mtime.toISOString(),
+            fidelityScore: meta.fidelityScore || 0,
+            niche: meta.niche,
+            technologies: meta.technologies || [],
+          });
+        } else if (existsSync(evidencePath)) {
           const ev = JSON.parse(readFileSync(evidencePath, "utf8"));
           runs.push({
             path: entry.name,

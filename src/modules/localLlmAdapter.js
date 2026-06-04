@@ -9,7 +9,7 @@ export async function tryLocalLlm(evidenceSummary, options = {}) {
   }
 
   const host = process.env.OLLAMA_HOST || "http://localhost:11434";
-  const timeout = options.timeout || 30000;
+  const timeout = options.timeout || 5000;
 
   try {
     const controller = new AbortController();

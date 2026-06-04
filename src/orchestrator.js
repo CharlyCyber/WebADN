@@ -3,7 +3,7 @@ import { buildKnowledgeMatrix } from "./modules/knowledgeMatrix.js";
 import { analyzeMotionReference } from "./modules/visionEngine.js";
 import { applyConversionStrategy } from "./modules/conversionBrain.js";
 import { generateMasterPrompt } from "./modules/promptGenerator.js";
-import { createRunFolder, ensureRunFolders, saveEvidence, savePrompt, findRecentRun, pruneOldRuns, updateRunsIndex } from "./support/artifacts.js";
+import { createRunFolder, ensureRunFolders, saveEvidence, saveRunMeta, savePrompt, findRecentRun, pruneOldRuns, updateRunsIndex } from "./support/artifacts.js";
 import { computeVisualRhythm } from "./modules/visualDiff.js";
 import { computeFidelityScore } from "./modules/fidelityScore.js";
 import { classifyDesignLanguage } from "./modules/localVisionHeuristics.js";
@@ -132,8 +132,10 @@ export async function runOrchestrator(config) {
   evidence.timings = { ...timings };
 
   await saveEvidence(paths.runPath, evidence);
+  await saveRunMeta(paths.runPath, evidence);
 
   config.onProgress?.({ step: "prompt", message: "Generando master prompt con evidencia quirurgica..." });
+  const promptStart = Date.now();
   const masterPrompt = generateMasterPrompt({
     url: config.url,
     niche: config.niche,
@@ -143,8 +145,12 @@ export async function runOrchestrator(config) {
     knowledgeMatrix,
     evidence
   });
+  const composeTime = Date.now() - promptStart;
+  log("info", "orchestrator", `Prompt generado en ${composeTime}ms, tamaño: ${(masterPrompt.length / 1024).toFixed(1)}KB`);
 
+  const saveStart = Date.now();
   await savePrompt(paths.runPath, masterPrompt, evidence, config.niche, config.url);
+  log("info", "orchestrator", `Prompt guardado en ${Date.now() - saveStart}ms`);
 
   await pruneOldRuns(20);
   await updateRunsIndex();
