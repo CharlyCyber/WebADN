@@ -132,9 +132,14 @@ async function handleExtract(request, response) {
       onProgress
     });
 
+    response.socket?.setNoDelay(true);
+    response.socket?.setKeepAlive(true);
+
+    const promptLen = masterPrompt.prompt ? masterPrompt.prompt.length : 0;
     const payload = JSON.stringify({
-      prompt: masterPrompt.prompt,
+      prompt: promptLen > 1_000_000 ? masterPrompt.prompt.slice(0, 5000) + "\n...[truncated - read from artifactPath]" : masterPrompt.prompt,
       artifactPath: masterPrompt.artifactPath,
+      truncated: promptLen > 1_000_000,
       evidence: trimEvidenceForSSE(masterPrompt.evidence),
       fidelityScore: masterPrompt.fidelityScore,
       generatedAt: new Date().toISOString()

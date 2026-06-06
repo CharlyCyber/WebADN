@@ -66,8 +66,16 @@ export async function ensureRunFolders(paths) {
 }
 
 export async function saveEvidence(runPath, evidence) {
+  const replacer = (key, value) => {
+    if (Buffer.isBuffer(value)) return `[Buffer:${value.length}b]`;
+    if (typeof value === "string" && value.length > 100_000) return value.slice(0, 1000) + "...[truncated]";
+    return value;
+  };
+  const json = JSON.stringify(evidence, replacer, 2);
+  console.log("[artifacts] saveEvidence: " + (json.length / 1024 / 1024).toFixed(2) + " MB");
   const filePath = join(runPath, "evidence.json");
-  await writeFile(filePath, JSON.stringify(evidence), "utf8");
+  await writeFile(filePath, json, "utf8");
+  console.log("[artifacts] saveEvidence: OK");
   return filePath;
 }
 
@@ -239,14 +247,14 @@ export async function pruneOldRuns(maxRuns = 20) {
       })
       .filter(Boolean)
       .filter(entry => entry.isDirectory)
-      .sort((a, b) => a.mtime.getTime() - b.mtime.getTime()); // Más antiguos primero
+      .sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
 
     if (entries.length > maxRuns) {
       const toRemove = entries.slice(0, entries.length - maxRuns);
-      const { rmSync } = await import("node:fs");
+      const { rm } = await import("node:fs/promises");
       for (const entry of toRemove) {
         try {
-          rmSync(join(RUNS_DIR, entry.name), { recursive: true, force: true });
+          await rm(join(RUNS_DIR, entry.name), { recursive: true, force: true });
           console.log(`LRU Pruned: run antiguo eliminado: ${entry.name}`);
         } catch (err) {
           console.error(`Error pruning run ${entry.name}:`, err);
@@ -271,31 +279,32 @@ export async function saveRunMeta(runPath, evidence) {
 
 export async function updateRunsIndex() {
   try {
-    const entries = readdirSync(RUNS_DIR)
-      .map(d => {
-        try {
-          const stats = statSync(join(RUNS_DIR, d));
-          return { name: d, mtime: stats.mtime, isDirectory: stats.isDirectory() };
-        } catch {
-          return null;
+    const { readdir, readFile, writeFile, stat } = await import("node:fs/promises");
+    const dirEntries = await readdir(RUNS_DIR);
+    const entries = [];
+    for (const d of dirEntries) {
+      try {
+        const fullPath = join(RUNS_DIR, d);
+        const stats = await stat(fullPath);
+        if (stats.isDirectory()) {
+          entries.push({ name: d, mtime: stats.mtime });
         }
-      })
-      .filter(Boolean)
-      .filter(entry => entry.isDirectory)
-      .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+      } catch {
+        // ignorar entradas inaccesibles
+      }
+    }
+    entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 
     const runs = [];
-    const { readFileSync, writeFileSync } = await import("node:fs");
-
     for (const entry of entries) {
       try {
         const entryPath = join(RUNS_DIR, entry.name);
         const metaPath = join(entryPath, "run.json");
         const evidencePath = join(entryPath, "evidence.json");
 
-        let meta;
-        if (existsSync(metaPath)) {
-          meta = JSON.parse(readFileSync(metaPath, "utf8"));
+        try {
+          const metaRaw = await readFile(metaPath, "utf8");
+          const meta = JSON.parse(metaRaw);
           runs.push({
             path: entry.name,
             domain: new URL(meta.url).hostname,
@@ -305,24 +314,29 @@ export async function updateRunsIndex() {
             niche: meta.niche,
             technologies: meta.technologies || [],
           });
-        } else if (existsSync(evidencePath)) {
-          const ev = JSON.parse(readFileSync(evidencePath, "utf8"));
-          runs.push({
-            path: entry.name,
-            domain: new URL(ev.url).hostname,
-            url: ev.url,
-            date: ev.generatedAt || entry.mtime.toISOString(),
-            fidelityScore: ev.fidelityScore?.overall || 0,
-            niche: ev.niche,
-            technologies: ev.inspection?.technologies?.slice(0, 5) || [],
-          });
+        } catch {
+          try {
+            const evRaw = await readFile(evidencePath, "utf8");
+            const ev = JSON.parse(evRaw);
+            runs.push({
+              path: entry.name,
+              domain: new URL(ev.url).hostname,
+              url: ev.url,
+              date: ev.generatedAt || entry.mtime.toISOString(),
+              fidelityScore: ev.fidelityScore?.overall || 0,
+              niche: ev.niche,
+              technologies: ev.inspection?.technologies?.slice(0, 5) || [],
+            });
+          } catch {
+            // run sin metadatos válidos
+          }
         }
-      } catch (err) {
+      } catch {
         // Ignorar runs corruptos
       }
     }
 
-    writeFileSync(join(RUNS_DIR, "index.json"), JSON.stringify(runs, null, 2), "utf8");
+    await writeFile(join(RUNS_DIR, "index.json"), JSON.stringify(runs, null, 2), "utf8");
   } catch (err) {
     console.error("Error in updateRunsIndex:", err);
   }

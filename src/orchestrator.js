@@ -131,8 +131,9 @@ export async function runOrchestrator(config) {
 
   evidence.timings = { ...timings };
 
-  await saveEvidence(paths.runPath, evidence);
-  await saveRunMeta(paths.runPath, evidence);
+  const sanitizedEvidence = sanitizeEvidence(evidence);
+  await saveEvidence(paths.runPath, sanitizedEvidence);
+  await saveRunMeta(paths.runPath, sanitizedEvidence);
 
   config.onProgress?.({ step: "prompt", message: "Generando master prompt con evidencia quirurgica..." });
   const promptStart = Date.now();
@@ -156,8 +157,8 @@ export async function runOrchestrator(config) {
   await savePrompt(paths.runPath, masterPrompt, evidence, config.niche, config.url);
   log("info", "orchestrator", `Prompt guardado en ${Date.now() - saveStart}ms`);
 
-  await pruneOldRuns(20);
-  await updateRunsIndex();
+  pruneOldRuns(20).catch(err => console.error("pruneOldRuns error:", err));
+  updateRunsIndex().catch(err => console.error("updateRunsIndex error:", err));
 
   log("info", "orchestrator", "Extraccion completada", { path: paths.runPath, fidelity: fidelityScore.overall });
 
@@ -228,8 +229,17 @@ function buildEvidence({ url, niche, inspection, motionAnalysis, conversionPlan,
       accessibility: conversionPlan.accessibility,
       seo: conversionPlan.seo
     },
-knowledgeMatrix
+    knowledgeMatrix
    };
+ }
+
+ function sanitizeEvidence(evidence) {
+   const e = JSON.parse(JSON.stringify(evidence, (key, value) => {
+     if (Buffer.isBuffer(value)) return `[Buffer:${value.length}b]`;
+     if (typeof value === "string" && value.length > 100_000) return value.slice(0, 1000) + "...[truncated]";
+     return value;
+   }));
+   return e;
  }
 
  function inferComplexityPreset(inspection) {
