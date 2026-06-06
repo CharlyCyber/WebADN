@@ -78,44 +78,49 @@ window.loadHistoryRun = async function(runPath) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let eventType = null;
+    let eventData = "";
+
+    const flush = () => {
+      if (eventType && eventData) {
+        let parsed;
+        try { parsed = JSON.parse(eventData); }
+        catch (e) { console.error("SSE JSON parse fail", e, eventData.slice(0, 200)); eventType = null; eventData = ""; return; }
+        if (eventType === "result") {
+          lastResponse = parsed;
+          document.querySelector("#outputPrompt").textContent = parsed.prompt;
+          populateEvidenceTabs(parsed.evidence);
+          updateMetrics(parsed);
+          if (parsed.fidelityScore) {
+            fidelityScore.textContent = `${parsed.fidelityScore.overall}%`;
+          }
+          if (parsed.artifactPath) {
+            artifactPath.textContent = `Cargado: ${parsed.artifactPath}`;
+          }
+          renderScreenshotsGrid(parsed.evidence, parsed.artifactPath);
+          setStatus("Cargado de caché");
+        }
+      }
+      eventType = null;
+      eventData = "";
+    };
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) { flush(); break; }
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
 
-      let eventType = null;
-      let eventData = "";
+      let nl;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
 
-      for (const line of lines) {
-        if (line.startsWith("event: ")) eventType = line.slice(7).trim();
-        else if (line.startsWith("data: ")) eventData = line.slice(6).trim();
-        else if (line === "") {
-          if (eventType && eventData) {
-            const data = JSON.parse(eventData);
-            if (eventType === "result") {
-              lastResponse = data;
-              document.querySelector("#outputPrompt").textContent = data.prompt;
-              populateEvidenceTabs(data.evidence);
-              updateMetrics(data);
-              
-              if (data.fidelityScore) {
-                fidelityScore.textContent = `${data.fidelityScore.overall}%`;
-              }
-              if (data.artifactPath) {
-                artifactPath.textContent = `Cargado: ${data.artifactPath}`;
-              }
-              
-              // Renderizar galería de screenshots
-              renderScreenshotsGrid(data.evidence, data.artifactPath);
-
-              setStatus("Cargado de caché");
-            }
-          }
-          eventType = null;
-          eventData = "";
+        if (line === "") {
+          flush();
+        } else if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          eventData = eventData ? eventData + "\n" + line.slice(6) : line.slice(6);
         }
       }
     }
@@ -196,29 +201,36 @@ form.addEventListener("submit", async (event) => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let eventType = null;
+    let eventData = "";
+
+    const flush = () => {
+      if (eventType && eventData) {
+        let parsed;
+        try { parsed = JSON.parse(eventData); }
+        catch (e) { console.error("SSE JSON parse fail", e, eventData.slice(0, 200)); eventType = null; eventData = ""; return; }
+        handleEvent(eventType, parsed);
+      }
+      eventType = null;
+      eventData = "";
+    };
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-
+      if (done) { flush(); break; }
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
 
-      let eventType = null;
-      let eventData = "";
+      let nl;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
 
-      for (const line of lines) {
-        if (line.startsWith("event: ")) {
+        if (line === "") {
+          flush();
+        } else if (line.startsWith("event: ")) {
           eventType = line.slice(7).trim();
         } else if (line.startsWith("data: ")) {
-          eventData = line.slice(6).trim();
-        } else if (line === "") {
-          if (eventType && eventData) {
-            handleEvent(eventType, JSON.parse(eventData));
-          }
-          eventType = null;
-          eventData = "";
+          eventData = eventData ? eventData + "\n" + line.slice(6) : line.slice(6);
         }
       }
     }
