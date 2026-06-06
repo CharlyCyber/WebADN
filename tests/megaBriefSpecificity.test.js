@@ -123,8 +123,8 @@ function makeAwwwardsEvidence() {
 }
 
 describe("composeMegaBrief specificity", () => {
-  it("keeps concrete fidelity, GSAP, token, effect, and WebGL instructions", () => {
-    const brief = composeMegaBrief(makeAwwwardsEvidence(), "surgical");
+  it("keeps concrete fidelity, GSAP, token, effect, and WebGL instructions", async () => {
+    const brief = await composeMegaBrief(makeAwwwardsEvidence(), "surgical");
 
     assert.match(brief, /80-90% resemblance/);
     assert.match(brief, /data-speed="0.8"/);

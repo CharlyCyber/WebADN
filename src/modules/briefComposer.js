@@ -25,16 +25,21 @@ const TRIM_LEVELS = {
     MAX_HEAVY_ASSETS: 4, MAX_CSS_BG_IMAGES: 8,
   },
   surgical: {
-    MAX_COLORS: Infinity, MAX_SECTIONS: Infinity, MAX_MOTION: Infinity, MAX_HOVER: Infinity, MAX_CTAS: Infinity,
-    MAX_SCRIPTS: Infinity, MAX_STYLESHEETS: Infinity, MAX_CSS_RULES: Infinity, MAX_CSS_VARS: Infinity,
-    MAX_FONTS: Infinity, MAX_SPACING: Infinity, MAX_KEYFRAMES: Infinity, MAX_FONT_FACES: Infinity,
-    MAX_MEDIA_QUERIES: Infinity, MAX_ANIMATION_HINTS: Infinity, MAX_RISKS: Infinity,
-    MAX_SECTION_STRUCTURE: Infinity, MAX_KEY_CHILDREN: Infinity, CHILDREN_STYLES: null,
-    HTML_SNIPPET_LENGTH: Infinity, TEXT_CONTENT_LENGTH: Infinity, MAX_VISUAL_EVIDENCE: Infinity,
-    MAX_IMAGES: Infinity, MAX_VIDEOS: Infinity, MAX_FONTS_ASSETS: Infinity, MAX_3D_MODELS: Infinity,
-    MAX_HEAVY_ASSETS: Infinity, MAX_CSS_BG_IMAGES: Infinity,
+    MAX_COLORS: 24, MAX_SECTIONS: 30, MAX_MOTION: 40, MAX_HOVER: 30, MAX_CTAS: 20,
+    MAX_SCRIPTS: 40, MAX_STYLESHEETS: 20, MAX_CSS_RULES: 500, MAX_CSS_VARS: 120,
+    MAX_FONTS: 20, MAX_SPACING: 30, MAX_KEYFRAMES: 40, MAX_FONT_FACES: 20,
+    MAX_MEDIA_QUERIES: 30, MAX_ANIMATION_HINTS: 50, MAX_RISKS: 30,
+    MAX_SECTION_STRUCTURE: 30, MAX_KEY_CHILDREN: 60,
+    CHILDREN_STYLES: null,
+    HTML_SNIPPET_LENGTH: 8000, TEXT_CONTENT_LENGTH: 400, MAX_VISUAL_EVIDENCE: 20,
+    MAX_IMAGES: 60, MAX_VIDEOS: 15, MAX_FONTS_ASSETS: 20, MAX_3D_MODELS: 10,
+    MAX_HEAVY_ASSETS: 15, MAX_CSS_BG_IMAGES: 30,
   }
 };
+
+function yieldToEventLoop() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 
 function classifyColorsByRole(inspection) {
   const seen = {};
@@ -241,37 +246,37 @@ function formatMotionKeyframes(keyframes = []) {
     .join(" -> ");
 }
 
-export function composeMegaBrief(evidence, fidelityLevel = "standard") {
-  const start = Date.now();
+export async function composeMegaBrief(evidence, fidelityLevel = "standard") {
   const trimmed = trimEvidence(evidence, fidelityLevel);
   const { inspection, visualRhythm, conversionPlan, niche, url } = trimmed;
   const designLanguage = trimmed.designLanguage || classifyDesignLanguage(trimmed);
   const referenceProfile = buildReferenceProfile(inspection, designLanguage);
 
+  const steps = [
+    () => composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm),
+    () => composeFidelityTarget(referenceProfile, niche),
+    () => composeDnaSummary(inspection, designLanguage, referenceProfile),
+    () => composeDesignTokens(inspection),
+    () => composeCssArchitecture(inspection, fidelityLevel),
+    () => composeComponentArchitecture(inspection),
+    () => composeSectionBuildSpec(inspection, fidelityLevel),
+    () => composeMotionTimeline(inspection),
+    () => composeInteractionRecipes(inspection),
+    () => composeAssetRequirements(inspection),
+    () => composeResponsiveRules(inspection, visualRhythm),
+    () => composeCroAdaptation(conversionPlan, inspection, niche, fidelityLevel),
+    () => composePerformanceBudget(conversionPlan, inspection),
+    () => composeAccessibilityConstraints(conversionPlan),
+    () => composeAcceptanceCriteria(inspection, niche),
+    () => composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile),
+  ];
+
   const sections = [];
+  for (const step of steps) {
+    sections.push(step());
+    await yieldToEventLoop();
+  }
 
-  sections.push(composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm));
-  sections.push(composeFidelityTarget(referenceProfile, niche));
-  sections.push(composeDnaSummary(inspection, designLanguage, referenceProfile));
-  sections.push(composeDesignTokens(inspection));
-  sections.push(composeCssArchitecture(inspection, fidelityLevel));
-  sections.push(composeComponentArchitecture(inspection));
-  sections.push(composeSectionBuildSpec(inspection, fidelityLevel));
-  sections.push(composeMotionTimeline(inspection));
-  sections.push(composeInteractionRecipes(inspection));
-  sections.push(composeAssetRequirements(inspection));
-  sections.push(composeResponsiveRules(inspection, visualRhythm));
-  sections.push(composeCroAdaptation(conversionPlan, inspection, niche, fidelityLevel));
-  sections.push(composePerformanceBudget(conversionPlan, inspection));
-  sections.push(composeAccessibilityConstraints(conversionPlan));
-  sections.push(composeAcceptanceCriteria(inspection, niche));
-  sections.push(composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile));
-
-  const elapsed = Date.now() - start;
-  const secCount = (inspection.sections || []).length;
-  const recCount = (inspection.motionRecipes || []).length;
-  const cssCount = (inspection.styles?.styleRules || []).length;
-  console.log(`[timing] composeMegaBrief: ${elapsed}ms (${secCount} sections, ${recCount} recipes, ${cssCount} CSS rules, level=${fidelityLevel})`);
   return sections.join("\n\n---\n\n");
 }
 
@@ -410,7 +415,11 @@ No CSSOM style rules were extracted. Do not invent a generic CSS architecture; u
   }
 
   const isFull = fidelityLevel === "surgical";
-  const selectorLimit = fidelityLevel === "compact" ? 20 : isFull ? styles.styleRules.length : 120;
+  const selectorLimit = fidelityLevel === "compact"
+    ? 20
+    : isFull
+      ? Math.min(styles.styleRules.length, 500)
+      : 120;
   const propLimit = fidelityLevel === "compact" ? 6 : null;
 
   const parts = [];

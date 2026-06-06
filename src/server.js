@@ -113,13 +113,21 @@ async function handleExtract(request, response) {
     sendEvent("progress", info);
   };
 
+  const heartbeat = setInterval(() => {
+    try {
+      response.write(`: keep-alive ${Date.now()}\n\n`);
+    } catch {
+    }
+  }, 10_000);
+  if (typeof heartbeat.unref === "function") heartbeat.unref();
+
   try {
     const masterPrompt = await runOrchestrator({
       url: validatedUrl,
       niche: body.niche,
       headless: true,
       timeoutMs: 120000,
-      preset: "surgical",
+      preset: body.preset || "standard",
       force: body.force,
       onProgress
     });
@@ -143,6 +151,7 @@ async function handleExtract(request, response) {
       // Intento mínimo de notificar error
     }
   } finally {
+    clearInterval(heartbeat);
     response.end();
   }
 }

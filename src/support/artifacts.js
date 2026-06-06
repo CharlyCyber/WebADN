@@ -156,17 +156,18 @@ export function buildCompactPrompt(fullText, evidence, niche, url) {
 }
 
 function extractFinalPrompt(text) {
-  const marker = "# 15. Final Agent Prompt";
-  const idx = text.indexOf(marker);
-  if (idx === -1) return null;
-  const endIdx = text.indexOf("\n# ", idx + 5);
-  const content = endIdx === -1 ? text.slice(idx) : text.slice(idx, endIdx);
-  return content.trim();
+  if (!text || typeof text !== "string") return null;
+  if (!text.includes("# 15. Final Agent Prompt")) return null;
+  const match = text.match(/# 15\. Final Agent Prompt[\s\S]*?(?=\n#\s+\d|$)/);
+  if (match) return match[0].trim();
+  const matchAlt = text.match(/# 15\. Final Agent Prompt[\s\S]*/);
+  if (matchAlt) return matchAlt[0].trim();
+  return null;
 }
 
 function parsePromptSections(text) {
-  // Separación básica por cabeceras Markdown
   const sections = {};
+  if (!text || typeof text !== "string") return sections;
   const regex = /#\s+([^#\n\r]+)/g;
   let match;
   let lastIndex = 0;

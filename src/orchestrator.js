@@ -136,7 +136,7 @@ export async function runOrchestrator(config) {
 
   config.onProgress?.({ step: "prompt", message: "Generando master prompt con evidencia quirurgica..." });
   const promptStart = Date.now();
-  const masterPrompt = generateMasterPrompt({
+  const masterPrompt = await generateMasterPrompt({
     url: config.url,
     niche: config.niche,
     inspection,
@@ -145,8 +145,12 @@ export async function runOrchestrator(config) {
     knowledgeMatrix,
     evidence
   });
-  const composeTime = Date.now() - promptStart;
-  log("info", "orchestrator", `Prompt generado en ${composeTime}ms, tamaño: ${(masterPrompt.length / 1024).toFixed(1)}KB`);
+  const promptMs = Date.now() - promptStart;
+  timings.composeMegaBrief = promptMs;
+  log("info", "composeMegaBrief", "Master prompt generado en " + promptMs + "ms", {
+    chars: typeof masterPrompt === "string" ? masterPrompt.length : 0
+  });
+  config.onProgress?.({ step: "prompt-done", message: "Master prompt listo (" + promptMs + "ms). Guardando artefactos..." });
 
   const saveStart = Date.now();
   await savePrompt(paths.runPath, masterPrompt, evidence, config.niche, config.url);
