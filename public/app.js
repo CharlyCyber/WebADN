@@ -160,7 +160,8 @@ form.addEventListener("submit", async (event) => {
     url: formData.get("url"),
     niche: formData.get("niche"),
     preset: formData.get("preset"),
-    force: true // Forzar extracción fresca al enviar formulario manualmente
+    ignoreRobots: formData.get("ignoreRobots") === "true",
+    force: true
   };
 
   setActiveTab("prompt");

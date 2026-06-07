@@ -13,6 +13,7 @@ import { extractStyles } from "./styleExtractor.js";
 import { downloadLocalAssets } from "./assetDownloader.js";
 import { extractSectionStructure } from "./structureExtractor.js";
 import { extractJsTokens, mergeJsTokens } from "./jsTokenExtractor.js";
+import { captureIntroTimeline, INTRO_INIT_SCRIPT } from "./introCapture.js";
 
 const TECHNOLOGY_SIGNATURES = [
   { name: "GSAP", tests: ["gsap", "ScrollTrigger"] },
@@ -102,6 +103,8 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     });
 
     const earlyNetworkAssets = [];
+    await page.addInitScript({ content: INTRO_INIT_SCRIPT });
+
     page.on("response", (response) => {
       try {
         const url = response.url();
@@ -127,6 +130,10 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
 
     onProgress?.({ step: "navigate", message: "Navegando al sitio..." });
     const navigationResult = await navigateWithFallback(page, url, timeoutMs);
+
+    const introTimeline = preset === "fast"
+      ? { enabled: false }
+      : await captureIntroTimeline(page, { screenshotsPath, preset, onProgress });
 
     const overlayActions = await handleOverlays(page);
     if (overlayActions.length > 0) {
@@ -284,6 +291,7 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     }, maxElements);
 
     const result = normalizeInspection(url, pageData);
+    result.introTimeline = introTimeline;
     result.navigation = {
       success: navigationResult.success,
       diagnosis: navigationResult.diagnosis,
@@ -323,6 +331,16 @@ onProgress?.({ step: "css-features", message: "Analizando features CSS..." });
       onProgress?.({ step: "structure", message: "Extrayendo estructura de secciones..." });
       const sectionStructure = await extractSectionStructure(page, sections);
       result.sectionStructure = sectionStructure;
+
+      const firstWithSvg = sectionStructure.find((s) => s.heroSvg);
+      if (firstWithSvg && screenshotsPath) {
+        try {
+          const assetPath = join(screenshotsPath, "..", "assets");
+          const { mkdir, writeFile } = await import("node:fs/promises");
+          await mkdir(assetPath, { recursive: true });
+          await writeFile(join(assetPath, "hero-svg.svg"), firstWithSvg.heroSvg, "utf8");
+        } catch {}
+      }
 
       onProgress?.({ step: "screenshots", message: "Capturando viewports..." });
       const visualEvidence = await captureViewportMatrix(page, screenshotsPath, preset);

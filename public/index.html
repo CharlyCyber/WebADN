@@ -39,6 +39,11 @@
 
           <input type="hidden" name="preset" value="surgical" />
 
+          <label class="field-checkbox" style="display:flex; align-items:center; gap:8px; margin-top:0.5rem;">
+            <input type="checkbox" name="ignoreRobots" value="true" />
+            <span style="font-size:0.85rem; color:var(--muted);">Ignorar robots.txt (solo con permiso del owner)</span>
+          </label>
+
           <button class="run-button" type="submit" style="margin-top: 1rem;">
             <span>Extraer y generar prompt</span>
           </button>

@@ -254,6 +254,7 @@ export async function composeMegaBrief(evidence, fidelityLevel = "standard") {
 
   const steps = [
     () => composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm),
+    () => composeIntroTimeline(evidence),
     () => composeFidelityTarget(referenceProfile, niche),
     () => composeDnaSummary(inspection, designLanguage, referenceProfile),
     () => composeDesignTokens(inspection),
@@ -307,6 +308,72 @@ function composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm) {
 **Visual Rhythm:** ${rhythm.length ? rhythm.join("; ") : "basic layout"}
 
 This reference uses a ${designLanguage.label} approach with ${motionCount > 3 ? "heavy" : motionCount > 0 ? "moderate" : "minimal"} motion choreography and ${cssComplexity > 60 ? "advanced" : cssComplexity > 30 ? "moderate" : "standard"} CSS effects.`;
+}
+
+function composeIntroTimeline(evidence) {
+  const intro = evidence?.inspection?.introTimeline || evidence?.introTimeline;
+  if (!intro || intro.enabled === false || (!intro.preloader?.detected && !intro.timeline?.length)) {
+    return "";
+  }
+
+  const parts = [`# 1A. Initial Load Choreography\n`];
+
+  if (intro.preloader?.detected) {
+    parts.push(`\n**Preloader presence:** Yes\n`);
+    parts.push(`- **Signature classes:** ${intro.preloader.classes}\n`);
+    parts.push(`- **Tag:** ${intro.preloader.tag}\n`);
+    parts.push(`- **Coverage:** ${intro.preloader.coverage}% of viewport\n`);
+    parts.push(`- **Element count:** ${intro.preloader.elementCount}\n`);
+    if (intro.preloader.durationMs) {
+      parts.push(`- **Duration:** ~${intro.preloader.durationMs}ms\n`);
+    }
+    parts.push(`\n**Implementation:** Include matching preloader that resolves before hero reveal. Use the same color/logo/style as detected.\n`);
+  } else {
+    parts.push(`\n**Preloader presence:** None detected\n`);
+  }
+
+  if (intro.timeline?.length > 0) {
+    parts.push(`\n## Hero Intro Timeline (time-based, NOT scroll-based)\n`);
+    for (const recipe of intro.timeline) {
+      parts.push(`\n### Recipe: ${recipe.type.toUpperCase()}\n`);
+      parts.push(`- **Target:** \`${recipe.target}\` (${recipe.tag})\n`);
+      parts.push(`- **Duration:** ${recipe.durationMs}ms\n`);
+      if (recipe.easing) parts.push(`- **Easing:** ${recipe.easing}\n`);
+      if (recipe.opacityRange) parts.push(`- **Opacity:** ${recipe.opacityRange}\n`);
+      if (recipe.yDelta) parts.push(`- **Y delta:** ${recipe.yDelta}px\n`);
+      if (recipe.clipPathRange) parts.push(`- **Clip-path:** ${recipe.clipPathRange}\n`);
+      if (recipe.scaleRange) parts.push(`- **Scale:** ${recipe.scaleRange}\n`);
+      if (recipe.keyframes?.length) {
+        parts.push(`- **Keyframes:**\n`);
+        for (const kf of recipe.keyframes) {
+          const details = [];
+          if (kf.tMs !== undefined) details.push(`t=${kf.tMs}ms`);
+          if (kf.opacity !== undefined) details.push(`opacity=${kf.opacity.toFixed(2)}`);
+          if (kf.y !== undefined) details.push(`y=${kf.y}`);
+          if (kf.clipPath) details.push(`clip=${kf.clipPath.slice(0, 60)}`);
+          if (kf.scaleX !== undefined && kf.scaleX !== null) details.push(`scaleX=${kf.scaleX.toFixed(2)}`);
+          parts.push(`  - ${details.join(", ")}\n`);
+        }
+      }
+      const implHint = recipe.type === "intro-fade" ? "GSAP timeline / CSS transition"
+        : recipe.type === "intro-slide-y" ? "GSAP fromTo y with ease"
+        : recipe.type === "intro-clip-reveal" ? "CSS clip-path animation / GSAP"
+        : recipe.type === "intro-scale" ? "GSAP scale tween"
+        : "CSS @keyframes or WAAPI";
+      parts.push(`- **Implementation hint:** ${implHint}\n`);
+    }
+
+    if (intro.screenshotPaths?.length) {
+      parts.push(`\n**Intro frames captured:** ${intro.screenshotPaths.length} screenshot(s)\n`);
+      parts.push(`Check \`intro/\` folder for frames at: ${intro.screenshotPaths.map((p) => `\`${p}\``).join(", ")}\n`);
+    }
+  }
+
+  if (!intro.timeline?.length && !intro.preloader?.detected) {
+    parts.push(`\nNo time-based intro animation or preloader detected. The page transitions directly to its idle state.\n`);
+  }
+
+  return parts.join("");
 }
 
 function composeDnaSummary(inspection, designLanguage, profile) {
@@ -1272,6 +1339,7 @@ function trimEvidence(evidence, level = "standard") {
     niche: evidence.niche,
     generatedAt: evidence.generatedAt,
     fidelityScore: evidence.fidelityScore,
+    introTimeline: evidence.introTimeline || originalInsp.introTimeline || null,
     designLanguage: evidence.designLanguage,
     visualRhythm: evidence.visualRhythm,
     motionAnalysis: evidence.motionAnalysis,
@@ -1353,6 +1421,7 @@ function trimEvidence(evidence, level = "standard") {
       } : null,
       visualEvidence: (originalInsp.visualEvidence || []).slice(0, limits.MAX_VISUAL_EVIDENCE),
       downloadedAssets: originalInsp.downloadedAssets,
+      introTimeline: originalInsp.introTimeline || null,
     }
   };
 }

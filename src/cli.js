@@ -151,5 +151,5 @@ function parseArgs(args) {
 }
 
 function printHelp() {
-  process.stdout.write("Surgical Web Extractor & Prompt Engine\n\nUsage:\n  node ./src/cli.js --url <url> --niche <niche> [--video <path>] [--dry-run]\n\nOptions:\n  -u, --url       Reference URL to inspect\n  -n, --niche     Business niche to adapt the design into\n  -v, --video     Optional UI/UX motion reference video\n      --dry-run   Skip live scraping and use a deterministic local sample\n      --headless  Run browser in headless mode, default true\n      --timeout   Scraper timeout in milliseconds\n");
+  process.stdout.write("Surgical Web Extractor & Prompt Engine\n\nUsage:\n  node ./src/cli.js --url <url> --niche <niche> [--video <path>] [--dry-run]\n\nOptions:\n  -u, --url       Reference URL to inspect\n  -n, --niche     Business niche to adapt the design into\n  -v, --video     Optional UI/UX motion reference video\n      --dry-run   Skip live scraping and use a deterministic local sample\n      --headless  Run browser in headless mode, default true\n      --timeout   Scraper timeout in milliseconds\n      --ignore-robots   Skip robots.txt verification (only if you have owner permission)\n      --force, -f       Ignore recent run cache\n");
 }

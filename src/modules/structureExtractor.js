@@ -132,7 +132,15 @@ export async function extractSectionStructure(page, sections) {
 
     return allElements.map((sectionEl, idx) => {
       const rect = sectionEl.getBoundingClientRect();
-      const outerHTML = sectionEl.outerHTML.slice(0, 8000);
+      const hasSvg = sectionEl.querySelector("svg") !== null;
+      const hasCanvas = sectionEl.querySelector("canvas") !== null;
+      const outerHTML = (hasSvg || hasCanvas)
+        ? sectionEl.outerHTML.slice(0, 30000)
+        : sectionEl.outerHTML.slice(0, 8000);
+
+      const heroSvg = hasSvg && idx === 0
+        ? sectionEl.querySelector("svg")?.outerHTML || null
+        : null;
 
       const keyChildren = [];
       const walkQueue = [[sectionEl, 0]];
@@ -181,6 +189,9 @@ export async function extractSectionStructure(page, sections) {
         classList: [...sectionEl.classList].join(" ").slice(0, 300),
         id: sectionEl.id || null,
         htmlSnippet: outerHTML,
+        heroSvg,
+        hasSvg,
+        hasCanvas,
         computedStyles: getComputedMap(sectionEl, opts.keyProps),
         background: getBackgroundDetails(sectionEl),
         layoutConfig: getLayoutConfig(sectionEl),

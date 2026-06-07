@@ -8,6 +8,7 @@ export async function navigateWithFallback(page, url, timeoutMs) {
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      // IMPORTANT: introCapture depends on "commit" returning immediately. Don't change to "load".
       await page.goto(url, { waitUntil: "commit", timeout: timeoutMs });
       navigateSuccess = true;
       break;

@@ -19,6 +19,11 @@ export async function mapSections(page) {
       const textLower = textContent.toLowerCase();
       const headingText = headings.map((h) => h.text.toLowerCase()).join(" ");
 
+      const svgEl = el.querySelector("svg");
+      const canvasEl = el.querySelector("canvas");
+      const heroLikelyVisualOnly = svgEl && svgEl.getBoundingClientRect().width > window.innerWidth * 0.5;
+      const heroLikelyCanvas = canvasEl && canvasEl.getBoundingClientRect().height > window.innerHeight * 0.7;
+
       for (const [role, config] of Object.entries(rolePatterns)) {
         let score = 0;
         if (role === "hero" && index === 0) { score += 0.3; reasons.push("first section"); }
@@ -27,6 +32,8 @@ export async function mapSections(page) {
           if (headingText.includes(signal) || textLower.includes(signal)) { score += 0.2; reasons.push(`contains "${signal}"`); }
         }
         if (headings.some((h) => h.level === "H1") && role === "hero") { score += 0.25; reasons.push("contains h1"); }
+        if (role === "hero" && heroLikelyVisualOnly) { score += 0.3; reasons.push("large hero SVG"); }
+        if (role === "hero" && heroLikelyCanvas) { score += 0.3; reasons.push("fullbleed hero canvas"); }
         if (ctas.length > 0 && (role === "hero" || role === "contact" || role === "pricing")) { score += 0.15; reasons.push("contains CTA"); }
         if (role === "nav" && el.tagName.toLowerCase() === "header") { score += 0.2; reasons.push("header element"); }
         scores[role] = score;

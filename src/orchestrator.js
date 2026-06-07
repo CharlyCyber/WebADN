@@ -212,7 +212,8 @@ function buildEvidence({ url, niche, inspection, motionAnalysis, conversionPlan,
       webgl: inspection.webgl || null,
       styles: inspection.styles || null,
       sectionStructure: inspection.sectionStructure || null,
-      downloadedAssets: inspection.downloadedAssets || null
+      downloadedAssets: inspection.downloadedAssets || null,
+      introTimeline: inspection.introTimeline || null
     },
     motionAnalysis: {
       enabled: motionAnalysis.enabled,

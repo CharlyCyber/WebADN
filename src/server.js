@@ -129,6 +129,7 @@ async function handleExtract(request, response) {
       timeoutMs: 120000,
       preset: body.preset || "standard",
       force: body.force,
+      ignoreRobots: body.ignoreRobots === true,
       onProgress
     });
 
