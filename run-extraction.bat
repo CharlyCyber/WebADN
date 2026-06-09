@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-echo Awwwards Surgical Extractor - CLI
+echo WebADN - Surgical Web Extractor CLI
 echo =================================
 echo.
 
