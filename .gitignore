@@ -5,3 +5,6 @@ server.err
 .env
 .DS_Store
 Thumbs.db
+.kilo/
+.playwright-mcp/
+gemini-code-*.md
