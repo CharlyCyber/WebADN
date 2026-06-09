@@ -7,6 +7,9 @@ import { loadLocalEnv } from "./support/env.js";
 import { validatePublicHttpUrl } from "./support/urlSafety.js";
 import { RUNS_DIR } from "./support/artifacts.js";
 import { Semaphore } from "./support/jobQueue.js";
+import { ensureDependencies } from "./support/autoInstall.js";
+
+await ensureDependencies();
 
 loadLocalEnv();
 

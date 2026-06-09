@@ -2,6 +2,9 @@
 
 import { runOrchestrator } from "./orchestrator.js";
 import { loadLocalEnv } from "./support/env.js";
+import { ensureDependencies } from "./support/autoInstall.js";
+
+await ensureDependencies();
 
 loadLocalEnv();
 
