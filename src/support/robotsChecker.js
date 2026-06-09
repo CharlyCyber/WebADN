@@ -1,11 +1,5 @@
-﻿import { isHostPublic } from "./urlSafety.js";
-
-export async function checkRobotsTxt(url, userAgent = "surgical-extractor") {
-  const { origin, pathname, hostname } = new URL(url);
-
-  if (!(await isHostPublic(hostname))) {
-    return { allowed: false, reason: "private or unresolvable host" };
-  }
+﻿export async function checkRobotsTxt(url, userAgent = "surgical-extractor") {
+  const { origin, pathname } = new URL(url);
 
   try {
     const res = await fetch(origin + "/robots.txt", { signal: AbortSignal.timeout(5000) });

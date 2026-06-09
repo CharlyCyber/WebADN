@@ -54,10 +54,12 @@ export async function runOrchestrator(config) {
 
   if (!config.ignoreRobots) {
     const robots = await checkRobotsTxt(config.url);
-    log("info", "robots", robots.allowed ? "Permitido por robots.txt" : "BLOQUEADO por robots.txt");
     if (!robots.allowed) {
-      throw new Error("robots.txt no permite el acceso. Usa --ignore-robots para forzar.");
+      const reason = robots.reason || "robots.txt bloquea el acceso";
+      log("info", "robots", `BLOQUEADO: ${reason}`);
+      throw new Error(`${reason}. Usa --ignore-robots para forzar.`);
     }
+    log("info", "robots", "Permitido por robots.txt");
   }
 
   const paths = createRunFolder(config.url, config.niche, config.preset || "standard");
