@@ -2,14 +2,19 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+
+function runKey(url, niche, preset) {
+  return createHash("sha1").update(`${url}|${niche || ""}|${preset || "standard"}`).digest("hex").slice(0, 10);
+}
 
 const RUNS_DIR = fileURLToPath(new URL("../../runs", import.meta.url));
 
-export function createRunFolder(url) {
+export function createRunFolder(url, niche = "", preset = "standard") {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const hrSuffix = process.hrtime.bigint().toString().slice(-6);
   const domain = new URL(url).hostname.replace(/[^a-z0-9.-]/gi, "_");
-  const runName = `${timestamp}-${hrSuffix}-${domain}`;
+  const runName = `${timestamp}-${hrSuffix}-${domain}-${runKey(url, niche, preset)}`;
   const runPath = join(RUNS_DIR, runName);
   const screenshotsPath = join(runPath, "screenshots");
   const tracesPath = join(runPath, "traces");
@@ -17,9 +22,9 @@ export function createRunFolder(url) {
   return { runPath, screenshotsPath, tracesPath, runName };
 }
 
-export function findRecentRun(url, maxAgeMinutes = 120) {
+export function findRecentRun(url, niche = "", preset = "standard", maxAgeMinutes = 120) {
   try {
-    const domain = new URL(url).hostname.replace(/[^a-z0-9.-]/gi, "_");
+    const key = runKey(url, niche, preset);
     
     // Crear el directorio runs si no existe para evitar excepciones
     try {
@@ -29,7 +34,7 @@ export function findRecentRun(url, maxAgeMinutes = 120) {
     }
 
     const entries = readdirSync(RUNS_DIR)
-      .filter(d => d.includes(domain))
+      .filter(d => d.endsWith(`-${key}`))
       .map(d => {
         try {
           const stats = statSync(join(RUNS_DIR, d));

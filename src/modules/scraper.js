@@ -13,6 +13,7 @@ import { extractStyles } from "./styleExtractor.js";
 import { downloadLocalAssets } from "./assetDownloader.js";
 import { extractSectionStructure } from "./structureExtractor.js";
 import { extractJsTokens, mergeJsTokens } from "./jsTokenExtractor.js";
+import { isHostPublic } from "../support/urlSafety.js";
 import { captureIntroTimeline, INTRO_INIT_SCRIPT } from "./introCapture.js";
 
 const TECHNOLOGY_SIGNATURES = [
@@ -129,6 +130,19 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     });
 
     onProgress?.({ step: "navigate", message: "Navegando al sitio..." });
+    await page.route("**/*", async (route) => {
+      try {
+        const reqUrl = new URL(route.request().url());
+        if (reqUrl.protocol === "http:" || reqUrl.protocol === "https:") {
+          if (!(await isHostPublic(reqUrl.hostname))) {
+            return route.abort("blockedbyclient");
+          }
+        }
+        return route.continue();
+      } catch {
+        return route.abort("blockedbyclient");
+      }
+    });
     const navigationResult = await navigateWithFallback(page, url, timeoutMs);
 
     const introTimeline = preset === "fast"

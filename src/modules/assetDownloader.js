@@ -1,5 +1,6 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
+import { isHostPublic } from "../support/urlSafety.js";
 
 export async function downloadLocalAssets(assets, downloadPath, onProgress) {
   const downloaded = { images: [], fonts: [] };
@@ -58,13 +59,20 @@ async function runBatch(items, concurrency, fn) {
 
 async function safeFetch(url, signal) {
   if (signal?.aborted) return null;
+  try {
+    const u = new URL(url);
+    if (!["http:", "https:"].includes(u.protocol)) return null;
+    if (!(await isHostPublic(u.hostname))) return null;
+  } catch {
+    return null;
+  }
   const controller = new AbortController();
   const onAbort = () => { try { controller.abort(); } catch {} };
   signal?.addEventListener("abort", onAbort);
   const timer = setTimeout(() => { try { controller.abort(); } catch {} }, 5000);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, redirect: "error" });
     if (!response.ok) { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); return null; }
     const buf = await response.arrayBuffer();
     clearTimeout(timer);

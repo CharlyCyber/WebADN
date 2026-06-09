@@ -26,24 +26,29 @@ export async function analyzeMotionReference({ videoPath, knowledgeMatrix }) {
   }
 
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
-  const modelName = process.env.VISION_MODEL || "gemini-1.5-pro";
+  const modelName = process.env.VISION_MODEL || "gemini-2.5-flash";
   const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = client.getGenerativeModel({ model: modelName });
   const videoBytes = await readFile(videoPath);
 
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        data: videoBytes.toString("base64"),
-        mimeType: inferMimeType(videoPath)
-      }
-    },
-    {
-      text: buildVisionPrompt(knowledgeMatrix)
-    }
-  ]);
-
-  const text = result.response.text();
+  let text;
+  try {
+    const result = await model.generateContent([
+      { inlineData: { data: videoBytes.toString("base64"), mimeType: inferMimeType(videoPath) } },
+      { text: buildVisionPrompt(knowledgeMatrix) }
+    ]);
+    text = result.response.text();
+  } catch (err) {
+    return {
+      enabled: false,
+      source: videoPath,
+      findings: [
+        `Fallo al analizar el vídeo con ${modelName}: ${err.message}`,
+        "Verifica GEMINI_API_KEY (free tier de Google AI Studio) y VISION_MODEL."
+      ],
+      mappedTechniques: ["scrollDamping", "dynamicClipPaths", "shaderUniforms"]
+    };
+  }
 
   return {
     enabled: true,

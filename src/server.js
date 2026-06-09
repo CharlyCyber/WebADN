@@ -6,10 +6,15 @@ import { runOrchestrator } from "./orchestrator.js";
 import { loadLocalEnv } from "./support/env.js";
 import { validatePublicHttpUrl } from "./support/urlSafety.js";
 import { RUNS_DIR } from "./support/artifacts.js";
+import { Semaphore } from "./support/jobQueue.js";
 
 loadLocalEnv();
 
 const PORT = Number(process.env.PORT || 4173);
+const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 2);
+const MAX_QUEUE = Number(process.env.MAX_QUEUE || 10);
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "false").toLowerCase() === "true";
+const extractionSemaphore = new Semaphore(MAX_CONCURRENT);
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
 const mimeTypes = {
@@ -23,8 +28,19 @@ const mimeTypes = {
 // Rate limiter map (ip -> { count, resetAt })
 const rateLimiter = new Map();
 
+function getClientIp(request) {
+  if (TRUST_PROXY) {
+    const xff = request.headers["x-forwarded-for"];
+    if (xff) return String(xff).split(",")[0].trim();
+  }
+  return request.socket.remoteAddress || "127.0.0.1";
+}
+
 function checkRateLimit(ip) {
   const now = Date.now();
+  for (const [key, value] of rateLimiter) {
+    if (now > value.resetAt) rateLimiter.delete(key);
+  }
   const entry = rateLimiter.get(ip) || { count: 0, resetAt: now + 60_000 };
   if (now > entry.resetAt) {
     entry.count = 0;
@@ -43,7 +59,7 @@ const server = createServer(async (request, response) => {
     const pathname = urlObj.pathname;
 
     if (request.method === "POST" && pathname === "/api/extract") {
-      const clientIp = request.headers["x-forwarded-for"] || request.socket.remoteAddress || "127.0.0.1";
+      const clientIp = getClientIp(request);
       try {
         checkRateLimit(clientIp);
       } catch (rateError) {
@@ -93,6 +109,11 @@ async function handleExtract(request, response) {
     return;
   }
 
+  if (extractionSemaphore.waiters.length >= MAX_QUEUE) {
+    sendJson(response, 429, { error: "Servidor ocupado. Inténtalo en unos minutos." });
+    return;
+  }
+
   response.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -113,6 +134,10 @@ async function handleExtract(request, response) {
     sendEvent("progress", info);
   };
 
+  if (extractionSemaphore.active >= MAX_CONCURRENT) {
+    sendEvent("progress", { step: "queued", message: "En cola, esperando un slot de extracción..." });
+  }
+
   const heartbeat = setInterval(() => {
     try {
       response.write(`: keep-alive ${Date.now()}\n\n`);
@@ -122,7 +147,7 @@ async function handleExtract(request, response) {
   if (typeof heartbeat.unref === "function") heartbeat.unref();
 
   try {
-    const masterPrompt = await runOrchestrator({
+    const masterPrompt = await extractionSemaphore.run(() => runOrchestrator({
       url: validatedUrl,
       niche: body.niche,
       headless: true,
@@ -131,7 +156,7 @@ async function handleExtract(request, response) {
       force: body.force,
       ignoreRobots: body.ignoreRobots === true,
       onProgress
-    });
+    }));
 
     response.socket?.setNoDelay(true);
     response.socket?.setKeepAlive(true);

@@ -1,6 +1,5 @@
 node_modules/
 runs/
-!runs/index.json
 *.log
 server.err
 .env

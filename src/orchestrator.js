@@ -34,7 +34,7 @@ function timed(name, fn) {
 export async function runOrchestrator(config) {
   log("info", "orchestrator", "Iniciando extraccion", { url: config.url, niche: config.niche });
 
-  const recentPath = findRecentRun(config.url, config.maxAgeMinutes || 120);
+  const recentPath = findRecentRun(config.url, config.niche, config.preset || "standard", config.maxAgeMinutes || 120);
   if (recentPath && !config.force) {
     config.onProgress?.({ step: "cache", message: "Extraccion reciente encontrada. Cargando del cache local..." });
     try {
@@ -60,7 +60,7 @@ export async function runOrchestrator(config) {
     }
   }
 
-  const paths = createRunFolder(config.url);
+  const paths = createRunFolder(config.url, config.niche, config.preset || "standard");
   await ensureRunFolders(paths);
 
   const timedInspectUrl = timed("scraper", inspectUrl);
