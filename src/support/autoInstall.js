@@ -1,9 +1,9 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = dirname(fileURLToPath(new URL("../../..", import.meta.url)));
+const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 export async function ensureDependencies() {
   const nodeModules = join(ROOT, "node_modules");
