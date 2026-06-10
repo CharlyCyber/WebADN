@@ -123,7 +123,7 @@ export async function probeHoverInteractions(page, preset = "standard") {
               hoverRules.push({ selector: st, props });
             }
           }
-        } catch {}
+        } catch (err) { console.debug("[hover] stylesheet rule parse:", err.message); }
       }
 
       // Crear sandbox invisible en el DOM para realizar pruebas aisladas
@@ -139,8 +139,9 @@ export async function probeHoverInteractions(page, preset = "standard") {
         try {
           clone = el.cloneNode(true);
           sandbox.appendChild(clone);
-        } catch {
-          continue; // Evitar fallos si algún elemento no es clonable
+        } catch (err) {
+          console.debug("[hover] clone fail:", err.message);
+          continue;
         }
 
         const before = readStyles(clone);
@@ -183,13 +184,13 @@ export async function probeHoverInteractions(page, preset = "standard") {
         // Limpiar el clon para la siguiente iteración
         try {
           clone.remove();
-        } catch {}
+        } catch (err) { console.debug("[hover] clone remove:", err.message); }
       }
 
       // Eliminar el sandbox al finalizar
       try {
         sandbox.remove();
-      } catch {}
+      } catch (err) { console.debug("[hover] sandbox remove:", err.message); }
 
       return results;
     }, maxTargets);

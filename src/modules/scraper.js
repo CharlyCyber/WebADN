@@ -43,29 +43,27 @@ async function preparePageForExtraction(page, onProgress, preset = "standard") {
       const scrollDistance = surgical ? 12000 : 6000;
       await new Promise(r => {
         let h = 0;
-        const t = setInterval(() => {
+        const maxScroll = Math.min(scrollDistance, document.body.scrollHeight);
+        const step = () => {
+          if (h >= maxScroll) { window.scrollTo(0, 0); r(); return; }
           window.scrollBy(0, 120);
           h += 120;
-          if (h >= Math.min(scrollDistance, document.body.scrollHeight)) {
-            clearInterval(t);
-            window.scrollTo(0, 0);
-            r();
-          }
-        }, 35);
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
       });
 
       if (surgical) {
         await new Promise(r => {
           let h = 0;
-          const t = setInterval(() => {
+          const maxScroll = Math.min(8000, document.body.scrollHeight);
+          const step = () => {
+            if (h >= maxScroll) { window.scrollTo(0, 0); r(); return; }
             window.scrollBy(0, 120);
             h += 120;
-            if (h >= Math.min(8000, document.body.scrollHeight)) {
-              clearInterval(t);
-              window.scrollTo(0, 0);
-              r();
-            }
-          }, 50);
+            requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
         });
       }
 
@@ -92,9 +90,10 @@ async function preparePageForExtraction(page, onProgress, preset = "standard") {
   await page.waitForTimeout(1500);
 }
 
-export async function inspectUrl({ url, headless = true, timeoutMs = 30000, preset = "standard", screenshotsPath, onProgress }) {
+export async function inspectUrl({ url, headless = true, timeoutMs = 30000, preset = "standard", screenshotsPath, onProgress, browser: externalBrowser }) {
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless });
+  let ownBrowser = false;
+  const browser = externalBrowser || (ownBrowser = true, await chromium.launch({ headless }));
 
   try {
     const page = await browser.newPage({
@@ -106,17 +105,29 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     const earlyNetworkAssets = [];
     await page.addInitScript({ content: INTRO_INIT_SCRIPT });
 
-    page.on("response", (response) => {
+    page.on("response", async (response) => {
       try {
-        const url = response.url();
+        const reqUrl = response.url();
         const status = response.status();
+        if (status >= 300 && status < 400) {
+          const location = response.headers()["location"];
+          if (location) {
+            const target = new URL(location, reqUrl);
+            if (!(await isHostPublic(target.hostname))) {
+              await page.context().close();
+              throw new Error(`SSRF blocked: redirect to private host ${target.hostname}`);
+            }
+          }
+        }
         if (status >= 400) return;
         const contentType = response.headers()["content-type"] || "";
-        const type = classifyAssetType(url, contentType);
+        const type = classifyAssetType(reqUrl, contentType);
         if (type) {
-          earlyNetworkAssets.push({ url, type, contentType, size: parseInt(response.headers()["content-length"] || "0"), status });
+          earlyNetworkAssets.push({ url: reqUrl, type, contentType, size: parseInt(response.headers()["content-length"] || "0"), status });
         }
-      } catch {}
+      } catch (e) {
+        if (e.message && e.message.includes("SSRF blocked")) throw e;
+      }
     });
 
     await page.addInitScript(() => {
@@ -353,7 +364,7 @@ onProgress?.({ step: "css-features", message: "Analizando features CSS..." });
           const { mkdir, writeFile } = await import("node:fs/promises");
           await mkdir(assetPath, { recursive: true });
           await writeFile(join(assetPath, "hero-svg.svg"), firstWithSvg.heroSvg, "utf8");
-        } catch {}
+        } catch (err) { console.warn("[scraper] SVG save failed:", err.message); }
       }
 
       onProgress?.({ step: "screenshots", message: "Capturando viewports..." });
@@ -430,7 +441,7 @@ if (typeof onProgress === 'function') {
 
     return result;
   } finally {
-    await browser.close();
+    if (ownBrowser) await browser.close();
   }
 }
 

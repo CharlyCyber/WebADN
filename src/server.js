@@ -17,6 +17,7 @@ const PORT = Number(process.env.PORT || 4173);
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 2);
 const MAX_QUEUE = Number(process.env.MAX_QUEUE || 10);
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "false").toLowerCase() === "true";
+const AUTH_TOKEN = process.env.AUTH_TOKEN || "";
 const extractionSemaphore = new Semaphore(MAX_CONCURRENT);
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
@@ -34,7 +35,10 @@ const rateLimiter = new Map();
 function getClientIp(request) {
   if (TRUST_PROXY) {
     const xff = request.headers["x-forwarded-for"];
-    if (xff) return String(xff).split(",")[0].trim();
+    if (xff) {
+      const ips = String(xff).split(",").map(s => s.trim());
+      return ips[ips.length - 1];
+    }
   }
   return request.socket.remoteAddress || "127.0.0.1";
 }
@@ -56,19 +60,46 @@ function checkRateLimit(ip) {
   rateLimiter.set(ip, entry);
 }
 
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; script-src 'self'",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+  "X-Frame-Options": "DENY",
+};
+
+function setSecurityHeaders(response) {
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    response.setHeader(key, value);
+  }
+}
+
 const server = createServer(async (request, response) => {
   try {
+    setSecurityHeaders(response);
+
+    if (AUTH_TOKEN) {
+      const auth = request.headers["authorization"];
+      if (auth !== `Bearer ${AUTH_TOKEN}`) {
+        sendJson(response, 401, { error: "unauthorized" });
+        return;
+      }
+    }
+
     const urlObj = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
     const pathname = urlObj.pathname;
 
-    if (request.method === "POST" && pathname === "/api/extract") {
-      const clientIp = getClientIp(request);
+    const clientIp = getClientIp(request);
+
+    if (pathname.startsWith("/api/")) {
       try {
         checkRateLimit(clientIp);
       } catch (rateError) {
         sendJson(response, 429, { error: rateError.message });
         return;
       }
+    }
+
+    if (request.method === "POST" && pathname === "/api/extract") {
       await handleExtract(request, response);
       return;
     }

@@ -22,40 +22,44 @@ export function createRunFolder(url, niche = "", preset = "standard") {
   return { runPath, screenshotsPath, tracesPath, runName };
 }
 
-export function findRecentRun(url, niche = "", preset = "standard", maxAgeMinutes = 120) {
+export async function findRecentRun(url, niche = "", preset = "standard", maxAgeMinutes = 120) {
   try {
     const key = runKey(url, niche, preset);
-    
-    // Crear el directorio runs si no existe para evitar excepciones
+    const { readdir, stat } = await import("node:fs/promises");
+
+    let dirEntries;
     try {
-      readdirSync(RUNS_DIR);
+      dirEntries = await readdir(RUNS_DIR);
     } catch {
       return null;
     }
 
-    const entries = readdirSync(RUNS_DIR)
-      .filter(d => d.endsWith(`-${key}`))
-      .map(d => {
-        try {
-          const stats = statSync(join(RUNS_DIR, d));
-          return { name: d, mtime: stats.mtime, isDirectory: stats.isDirectory() };
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean)
-      .filter(entry => entry.isDirectory)
-      .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+    const entries = (await Promise.all(
+      dirEntries
+        .filter(d => d.endsWith(`-${key}`))
+        .map(async d => {
+          try {
+            const stats = await stat(join(RUNS_DIR, d));
+            return { name: d, mtime: stats.mtime, isDirectory: stats.isDirectory() };
+          } catch {
+            return null;
+          }
+        })
+    )).filter(Boolean).filter(entry => entry.isDirectory);
+
+    entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 
     if (!entries.length) return null;
-    
+
     const newest = entries[0];
     const ageMs = Date.now() - newest.mtime.getTime();
     if (ageMs < maxAgeMinutes * 60_000) {
       const targetPath = join(RUNS_DIR, newest.name);
-      if (existsSync(join(targetPath, "prompt.md"))) {
+      const { access } = await import("node:fs/promises");
+      try {
+        await access(join(targetPath, "prompt.md"));
         return targetPath;
-      }
+      } catch {}
     }
   } catch (err) {
     console.error("Error finding recent run:", err);
@@ -104,7 +108,12 @@ function sanitizePrompt(text) {
   if (!text) return "";
   return text
     .replace(/([?&])(token|key|signature|auth|api_key|secret|password|passwd|pass)=[^&\s"']*/gi, "$1$2=REDACTED")
-    .replace(/Bearer\s+[A-Za-z0-9._-]{20,}/g, "Bearer [REDACTED]");
+    .replace(/Bearer\s+[A-Za-z0-9._-]{20,}/g, "Bearer [REDACTED]")
+    .replace(/sk-[A-Za-z0-9]{20,}/g, "sk-[REDACTED]")
+    .replace(/ghp_[A-Za-z0-9]{36,}/g, "ghp_[REDACTED]")
+    .replace(/AKIA[0-9A-Z]{16}/g, "AKIA[REDACTED]")
+    .replace(/eyJ[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_-]{10,}){2}/g, "eyJ[REDACTED]")
+    .replace(/(Authorization|X-API-Key):\s*\S+/gi, "$1: REDACTED");
 }
 
 export function buildCompactPrompt(fullText, evidence, niche, url) {
@@ -241,18 +250,19 @@ export async function saveTrace(runPath, name, data) {
 
 export async function pruneOldRuns(maxRuns = 20) {
   try {
-    const entries = readdirSync(RUNS_DIR)
-      .map(d => {
+    const { readdir, stat } = await import("node:fs/promises");
+    const dirEntries = await readdir(RUNS_DIR);
+    const entries = (await Promise.all(
+      dirEntries.map(async d => {
         try {
-          const stats = statSync(join(RUNS_DIR, d));
+          const stats = await stat(join(RUNS_DIR, d));
           return { name: d, mtime: stats.mtime, isDirectory: stats.isDirectory() };
         } catch {
           return null;
         }
       })
-      .filter(Boolean)
-      .filter(entry => entry.isDirectory)
-      .sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
+    )).filter(Boolean).filter(entry => entry.isDirectory);
+    entries.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
 
     if (entries.length > maxRuns) {
       const toRemove = entries.slice(0, entries.length - maxRuns);

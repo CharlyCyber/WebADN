@@ -1,18 +1,55 @@
 ﻿# Surgical Web Extractor & Prompt Engine
 
-Herramienta local Node.js para convertir una URL, un video opcional y un nicho comercial en un Master Prompt tÃ©cnico orientado a construir sitios premium con foco real en conversiÃ³n.
+Herramienta local Node.js para inspeccionar una URL de referencia y generar un Master Prompt técnico orientado a construir sitios web premium adaptados a un nicho comercial.
 
-## InstalaciÃ³n
+## Instalación
 
 ```bash
 npm install
-npx playwright install chromium
+npm run setup
 ```
 
-## Uso
+## Uso CLI
 
+### Extracción básica
 ```bash
 npm start -- --url "https://example.com" --niche "estudio premium de arquitectura"
+```
+
+### Presets de extracción
+```bash
+# fast — extracción rápida, menos datos (ideal para pruebas)
+--preset fast
+
+# standard — equilibrio (default)
+--preset standard
+
+# surgical — máxima profundidad: scroll completo, animaciones, WebGL, hovers
+--preset surgical
+```
+
+### Otras opciones
+```bash
+# Con video de referencia
+npm start -- --url "https://example.com" --video "./referencia.mp4" --niche "marca de lujo sostenible"
+
+# Modo demo (sin navegación real)
+npm run demo
+
+# Ignorar robots.txt (solo con permiso del dueño)
+npm start -- --url "https://example.com" --niche "test" --ignore-robots
+
+# Forzar re-extracción (ignorar caché)
+npm start -- --url "https://example.com" --niche "test" --force
+```
+
+### Subcomandos
+```bash
+# Listar ejecuciones anteriores
+surgical-extractor list
+
+# Comparar dos ejecuciones
+surgical-extractor compare <runFolder1> <runFolder2>
 ```
 
 ## Dashboard web
@@ -21,35 +58,38 @@ npm start -- --url "https://example.com" --niche "estudio premium de arquitectur
 npm run web
 ```
 
-Abre `http://localhost:4173` y ejecuta extracciones desde la interfaz.
+Abre `http://127.0.0.1:4173` y ejecuta extracciones desde la interfaz gráfica.
 
-Con video:
-
-```bash
-npm start -- --url "https://example.com" --video "./referencia.mp4" --niche "marca de lujo sostenible"
-```
-
-Modo sin navegar, Ãºtil para probar la generaciÃ³n del prompt:
-
-```bash
-npm run demo
-```
+### Seguridad del dashboard
+- Escucha solo en `127.0.0.1` (no accesible desde la red).
+- Opcional: define `AUTH_TOKEN=tu-token` en `.env` para proteger los endpoints.
+- Rate limit: máximo 5 peticiones por minuto por IP.
 
 ## Variables de entorno
 
-Copia `.env.example` a `.env` y rellena `GEMINI_API_KEY` si quieres anÃ¡lisis multimedia con Gemini. Si no hay clave, el Vision Engine devuelve un anÃ¡lisis heurÃ­stico y deja explÃ­cito quÃ© faltÃ³.
+Copia `.env.example` a `.env`. Variables disponibles:
+
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `GEMINI_API_KEY` | — | Clave de Gemini para análisis multimedia |
+| `VISION_MODEL` | `gemini-2.5-flash` | Modelo de visión |
+| `HEADLESS` | `true` | Modo headless del navegador |
+| `SCRAPER_TIMEOUT_MS` | `30000` | Timeout del scraper |
+| `MAX_CONCURRENT` | `2` | Extracciones simultáneas máximas |
+| `MAX_QUEUE` | `10` | Máximo en cola de espera |
+| `TRUST_PROXY` | `false` | Confiar en header X-Forwarded-For |
+| `AUTH_TOKEN` | — | Token Bearer para proteger el dashboard |
 
 ## Salida
 
-El CLI imprime un Ãºnico bloque Markdown con:
+El CLI imprime un bloque Markdown con diagnóstico técnico completo del sitio de referencia:
 
-1. Tech Stack & Tokens
-2. Arquitectura de ConversiÃ³n & Pushback
-3. Desglose de IngenierÃ­a de Animaciones
-4. AdaptaciÃ³n al Nicho
+1. Tech Stack & Design Tokens
+2. Arquitectura de Conversión & Pushback
+3. Ingeniería de Animaciones (GSAP, scroll, WebGL)
+4. Adaptación al Nicho
 5. Prompt Final Ejecutable
 
 ## Legal
 
-Este tool extrae informaciÃ³n tÃ©cnica con Playwright para fines de estudio/inspiraciÃ³n. Respeta los robots.txt de cada sitio. Los assets descargados son solo para uso local. No clones contenido protegido. Revisa los Terms of Service de cada web antes de extraer.
-
+Esta herramienta extrae información técnica con Playwright para fines de estudio e inspiración. Respeta robots.txt de cada sitio. Los assets descargados son solo para uso local. No clones contenido protegido. Revisa los Términos de Servicio de cada web antes de extraer. El responsable legal del uso es el operador de la herramienta.

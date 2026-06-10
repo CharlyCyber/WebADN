@@ -12,6 +12,10 @@ const tabBar = document.querySelector("#tabBar");
 const runList = document.querySelector("#runList");
 const screenshotGrid = document.querySelector("#screenshotGrid");
 
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 let lastResponse = null;
 
 // Cargar historial al arrancar la aplicación
@@ -33,16 +37,20 @@ async function loadHistory() {
     runList.innerHTML = runs.map(run => `
       <div class="panel" style="padding: 1rem; border: 2px solid var(--line); border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; background: var(--panel);">
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <span style="font-weight: 600; font-family: var(--mono); color: var(--ink);">${run.domain}</span>
-          <span style="font-size: 0.75rem; color: var(--muted);">${run.niche} &bull; ${new Date(run.date).toLocaleString()}</span>
-          <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">${run.technologies.join(", ")}</span>
+          <span style="font-weight: 600; font-family: var(--mono); color: var(--ink);">${esc(run.domain)}</span>
+          <span style="font-size: 0.75rem; color: var(--muted);">${esc(run.niche)} &bull; ${new Date(run.date).toLocaleString()}</span>
+          <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">${esc(run.technologies.join(", "))}</span>
         </div>
         <div style="display:flex; gap:12px; align-items:center;">
-          <span style="background: var(--acid); padding: 4px 8px; border: 2px solid var(--line); border-radius: 4px; font-weight: bold; font-size: 0.85rem;">Fidelity: ${run.fidelityScore}%</span>
-          <button class="copy-button" onclick="loadHistoryRun('${run.path}')" style="cursor:pointer; padding: 6px 12px; font-size: 0.8rem;">Cargar</button>
+          <span style="background: var(--acid); padding: 4px 8px; border: 2px solid var(--line); border-radius: 4px; font-weight: bold; font-size: 0.85rem;">Fidelity: ${esc(String(run.fidelityScore))}%</span>
+          <button class="copy-button" data-run-path="${esc(run.path)}" style="cursor:pointer; padding: 6px 12px; font-size: 0.8rem;">Cargar</button>
         </div>
       </div>
     `).join("");
+
+    runList.querySelectorAll("[data-run-path]").forEach(btn => {
+      btn.addEventListener("click", () => loadHistoryRun(btn.dataset.runPath));
+    });
   } catch (err) {
     console.error("Error al cargar historial:", err);
   }

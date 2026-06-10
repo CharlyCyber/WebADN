@@ -12,6 +12,7 @@ import { checkRobotsTxt } from "./support/robotsChecker.js";
 import { log } from "./support/logger.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { initBrowserPool, getBrowser } from "./support/browserPool.js";
 
 const timings = {};
 
@@ -34,7 +35,7 @@ function timed(name, fn) {
 export async function runOrchestrator(config) {
   log("info", "orchestrator", "Iniciando extraccion", { url: config.url, niche: config.niche });
 
-  const recentPath = findRecentRun(config.url, config.niche, config.preset || "standard", config.maxAgeMinutes || 120);
+  const recentPath = await findRecentRun(config.url, config.niche, config.preset || "standard", config.maxAgeMinutes || 120);
   if (recentPath && !config.force) {
     config.onProgress?.({ step: "cache", message: "Extraccion reciente encontrada. Cargando del cache local..." });
     try {
@@ -74,7 +75,8 @@ export async function runOrchestrator(config) {
         timeoutMs: config.timeoutMs,
         preset: config.preset || "standard",
         screenshotsPath: paths.screenshotsPath,
-        onProgress: config.onProgress
+        onProgress: config.onProgress,
+        browser: await getBrowser()
       });
 
   // Auto-detect complex sites and upgrade to surgical preset
