@@ -1,6 +1,35 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+/**
+ * Safe screenshot wrapper — prevents Playwright's internal font-loading
+ * wait from blocking indefinitely during intro capture.
+ */
+async function safeScreenshot(page, options, timeoutMs = 10000) {
+  try {
+    await Promise.race([
+      page.screenshot({ ...options, timeout: timeoutMs }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("intro screenshot safety timeout")), timeoutMs + 2000)
+      )
+    ]);
+  } catch (err) {
+    try {
+      // Force-clear stuck font loading states
+      await page.evaluate(() => {
+        try {
+          for (const font of [...document.fonts]) {
+            if (font.status === 'loading') document.fonts.delete(font);
+          }
+        } catch {}
+      });
+      await page.screenshot({ ...options, timeout: timeoutMs });
+    } catch {
+      console.warn(`[introCapture] Screenshot skipped: ${err.message}`);
+    }
+  }
+}
+
 export const INTRO_INIT_SCRIPT = `
   window.__introStartTime = Date.now();
 `;
@@ -85,7 +114,7 @@ export async function captureIntroTimeline(page, { screenshotsPath, preset, onPr
     let screenshotName = null;
     if (introDir) {
       screenshotName = `intro-${String(tMs).padStart(5, "0")}ms.png`;
-      await page.screenshot({ path: join(introDir, screenshotName), fullPage: false });
+      await safeScreenshot(page, { path: join(introDir, screenshotName), fullPage: false });
     }
 
     const snapshot = await page.evaluate((selectors) => {

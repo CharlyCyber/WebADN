@@ -33,7 +33,11 @@ async function preparePageForExtraction(page, onProgress, preset = "standard") {
   onProgress?.({ step: "prepare-page", message: "Preparando página (fuentes, lazy load, pre-scroll)..." });
   try {
     await page.evaluate(async (surgical) => {
-      await document.fonts.ready;
+      // Esperar fuentes con timeout de 5s para evitar bloqueo infinito
+      await Promise.race([
+        document.fonts.ready,
+        new Promise(r => setTimeout(r, 5000))
+      ]);
 
       document.querySelectorAll('img[loading="lazy"]').forEach(img => {
         img.loading = "eager";
@@ -368,7 +372,14 @@ onProgress?.({ step: "css-features", message: "Analizando features CSS..." });
       }
 
       onProgress?.({ step: "screenshots", message: "Capturando viewports..." });
-      const visualEvidence = await captureViewportMatrix(page, screenshotsPath, preset);
+      // Guard timeout: si captureViewportMatrix tarda más de 90s, continuar con evidencia vacía
+      const visualEvidence = await Promise.race([
+        captureViewportMatrix(page, screenshotsPath, preset),
+        new Promise((resolve) => setTimeout(() => {
+          console.warn("[scraper] captureViewportMatrix timed out after 90s, continuing...");
+          resolve([]);
+        }, 90000))
+      ]);
       result.visualEvidence = visualEvidence;
 
       await page.setViewportSize({ width: 1440, height: 1100 });

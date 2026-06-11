@@ -1,6 +1,52 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+/**
+ * Safe screenshot wrapper — uses Promise.race to prevent Playwright's
+ * internal font-loading wait from blocking indefinitely.
+ * Falls back to a no-timeout screenshot if the timed one fails.
+ */
+async function safeScreenshot(page, options, timeoutMs = 15000) {
+  try {
+    await Promise.race([
+      page.screenshot({ ...options, timeout: timeoutMs }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("screenshot safety timeout")), timeoutMs + 2000)
+      )
+    ]);
+  } catch (err) {
+    // If the normal screenshot timed out waiting for fonts, bypass fonts and retry
+    try {
+      await page.evaluate(() => {
+        // Force all font faces to loaded status by replacing them
+        try {
+          const fonts = [...document.fonts];
+          for (const font of fonts) {
+            if (font.status === 'loading') {
+              document.fonts.delete(font);
+            }
+          }
+        } catch {}
+      });
+      await page.screenshot({ ...options, timeout: timeoutMs });
+    } catch (retryErr) {
+      // Last resort: capture what we can with animations disabled
+      try {
+        await page.evaluate(() => {
+          document.querySelectorAll('*').forEach(el => {
+            el.style.animationPlayState = 'paused';
+            el.style.transition = 'none';
+          });
+        });
+        await page.screenshot({ ...options, timeout: timeoutMs });
+      } catch {
+        // Silently skip this screenshot — better than crashing the entire pipeline
+        console.warn(`[visualCapture] Screenshot skipped: ${retryErr.message}`);
+      }
+    }
+  }
+}
+
 export const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 1100 },
   { name: "tablet", width: 834, height: 1112 },
@@ -15,10 +61,13 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
   const scrollPoints = getScrollPointsForPreset(preset);
   const results = [];
 
-  // Esperar a que las fuentes estén cargadas por completo en el navegador
+  // Esperar a que las fuentes estén cargadas (con timeout de 5s para evitar bloqueo infinito)
   try {
     await page.evaluate(async () => {
-      await document.fonts.ready;
+      await Promise.race([
+        document.fonts.ready,
+        new Promise(r => setTimeout(r, 5000))
+      ]);
     });
   } catch {}
 
@@ -72,7 +121,7 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
 
       const screenshotName = `${viewport.name}-${String(scrollPercent).padStart(3, "0")}.png`;
       const screenshotPath = join(screenshotsPath, screenshotName);
-      await page.screenshot({ path: screenshotPath, fullPage: false });
+      await safeScreenshot(page, { path: screenshotPath, fullPage: false });
 
       const domSnapshot = await page.evaluate(() => {
         const visibleElements = [];
