@@ -25,9 +25,9 @@ if not exist "node_modules\playwright" (
   echo.
 )
 
-REM 3) Arrancar el servidor en su propia ventana
+REM 3) Arrancar el servidor en background (misma ventana)
 echo Iniciando servidor...
-start "WebADN Server" cmd /k node src/server.js
+start /b node src/server.js
 
 REM 4) Esperar a que el puerto 4173 responda ANTES de abrir el navegador
 echo Esperando a que el servidor este listo...

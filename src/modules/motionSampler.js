@@ -133,7 +133,7 @@ async function findAnimatedCandidates(page) {
   });
 }
 
-function inferMotionRecipes(samples, candidates) {
+export function inferMotionRecipes(samples, candidates) {
   if (!samples.length || !candidates.length) return [];
 
   const recipes = [];
@@ -158,12 +158,13 @@ function inferMotionRecipes(samples, candidates) {
     const scrollRange = last.scrollPercent - first.scrollPercent;
     const keyframes = buildScrollKeyframes(points);
 
-    if (Math.abs(yDelta) > 30) {
+    const isSticky = first.position === "sticky" || last.position === "sticky";
+    if (Math.abs(yDelta) > 30 || isSticky) {
       const scrollDelta = Math.abs(last.scrollY - first.scrollY) || 1;
-      const parallaxRatio = Math.abs(yDelta) / scrollDelta;
+      const parallaxRatio = isSticky ? 0 : Math.abs(yDelta) / scrollDelta;
 
       let type = "scroll-translate";
-      if (first.position === "sticky") type = "sticky-pin";
+      if (isSticky) type = "sticky-pin";
       else if (Math.abs(parallaxRatio) > 0.1 && Math.abs(parallaxRatio) < 0.9) type = "scroll-parallax";
 
       recipes.push({
@@ -171,9 +172,9 @@ function inferMotionRecipes(samples, candidates) {
         target: selector,
         tag: candidate.tag,
         range: `${first.scrollPercent}-${last.scrollPercent}%`,
-        yDelta: Math.round(yDelta),
+        yDelta: isSticky ? 0 : Math.round(yDelta),
         xDelta: Math.round(xDelta),
-        parallaxRatio: Math.round(parallaxRatio * 100) / 100,
+        parallaxRatio: isSticky ? 0 : Math.round(parallaxRatio * 100) / 100,
         opacity: first.opacity !== last.opacity ? `${first.opacity} -> ${last.opacity}` : null,
         keyframes,
         implementation: type === "sticky-pin"
@@ -184,7 +185,7 @@ function inferMotionRecipes(samples, candidates) {
       });
     }
 
-    if (first.opacity !== 1 && last.opacity !== first.opacity) {
+    if (first.opacity !== last.opacity) {
       const fadeStart = points.find((p) => p.opacity < 0.95);
       const fadeEnd = points.findLast((p) => p.opacity < 0.95);
 

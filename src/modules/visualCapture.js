@@ -1,24 +1,53 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+const THUMB_W = 96;
+const THUMB_H = 54;
+
+async function generateThumbnail(page) {
+  try {
+    const dataUri = await page.evaluate(async ({ w, h }) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      await new Promise(r => setTimeout(r, 50));
+      const img = document.createElement("img");
+      img.crossOrigin = "anonymous";
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${window.innerWidth}" height="${window.innerHeight}"><foreignObject width="100%" height="100%"><body xmlns="http://www.w3.org/1999/xhtml" style="margin:0">${document.documentElement.outerHTML}</body></foreignObject></svg>`;
+      const blob = new Blob([svg], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      return new Promise(resolve => {
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL("image/jpeg", 0.6));
+        };
+        img.onerror = () => resolve(null);
+        img.src = url;
+      });
+    }, { w: THUMB_W, h: THUMB_H });
+    return dataUri;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Safe screenshot wrapper — uses Promise.race to prevent Playwright's
- * internal font-loading wait from blocking indefinitely.
- * Falls back to a no-timeout screenshot if the timed one fails.
+ * Safe screenshot wrapper — returns { filePath, thumbnail }.
  */
 async function safeScreenshot(page, options, timeoutMs = 15000) {
+  let buffer;
   try {
-    await Promise.race([
+    buffer = await Promise.race([
       page.screenshot({ ...options, timeout: timeoutMs }),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error("screenshot safety timeout")), timeoutMs + 2000)
       )
     ]);
   } catch (err) {
-    // If the normal screenshot timed out waiting for fonts, bypass fonts and retry
     try {
       await page.evaluate(() => {
-        // Force all font faces to loaded status by replacing them
         try {
           const fonts = [...document.fonts];
           for (const font of fonts) {
@@ -28,9 +57,8 @@ async function safeScreenshot(page, options, timeoutMs = 15000) {
           }
         } catch {}
       });
-      await page.screenshot({ ...options, timeout: timeoutMs });
+      buffer = await page.screenshot({ ...options, timeout: timeoutMs });
     } catch (retryErr) {
-      // Last resort: capture what we can with animations disabled
       try {
         await page.evaluate(() => {
           document.querySelectorAll('*').forEach(el => {
@@ -38,13 +66,18 @@ async function safeScreenshot(page, options, timeoutMs = 15000) {
             el.style.transition = 'none';
           });
         });
-        await page.screenshot({ ...options, timeout: timeoutMs });
+        buffer = await page.screenshot({ ...options, timeout: timeoutMs });
       } catch {
-        // Silently skip this screenshot — better than crashing the entire pipeline
         console.warn(`[visualCapture] Screenshot skipped: ${retryErr.message}`);
+        return null;
       }
     }
   }
+  if (!buffer) return null;
+  if (options.path) {
+    await writeFile(options.path, buffer);
+  }
+  return buffer;
 }
 
 export const VIEWPORTS = [
@@ -121,7 +154,13 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
 
       const screenshotName = `${viewport.name}-${String(scrollPercent).padStart(3, "0")}.png`;
       const screenshotPath = join(screenshotsPath, screenshotName);
-      await safeScreenshot(page, { path: screenshotPath, fullPage: false });
+      const raw = await safeScreenshot(page, { path: screenshotPath, fullPage: false });
+      let thumbnail = null;
+      if (raw) {
+        try {
+          thumbnail = await generateThumbnail(page);
+        } catch {}
+      }
 
       const domSnapshot = await page.evaluate(() => {
         const visibleElements = [];
@@ -186,6 +225,7 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
         scrollY,
         screenshotPath,
         screenshotName,
+        thumbnail,
         visibleText: domSnapshot.visibleText,
         visibleElements: domSnapshot.visibleElements,
         dominantLayoutSignals: domSnapshot.dominantLayoutSignals,

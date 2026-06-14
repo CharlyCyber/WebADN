@@ -124,15 +124,11 @@ export function buildCompactPrompt(fullText, evidence, niche, url) {
   const colors = (tok.colors || []).slice(0, 6).join(", ");
   const fonts = (tok.fonts || []).slice(0, 3).join(" | ");
   const cssVars = Object.entries(tok.cssVariables || {}).slice(0, 10);
-  const finalPrompt = extractFinalPrompt(fullText);
+  const briefFinal = extractBriefFromFinal(fullText);
 
   const parts = [];
 
-  if (finalPrompt) {
-    parts.push(finalPrompt);
-  } else {
-    parts.push(`# Compact Surgical Prompt\n\nBuild an evidence-matched site for niche: "${niche}".\nReference: ${url}\nEvery visual, motion, typography, and layout decision must map to extracted evidence. Do not invent a generic landing page.\n`);
-  }
+  parts.push(`# Compact Prompt: ${niche}\n\nBuild site for "${niche}" matching reference ${url}.\n${briefFinal ? briefFinal : "Match extracted design tokens, section structure, and motion patterns exactly."}\n`);
 
   const tokenBlock = ["## Design Tokens"];
   if (colors) tokenBlock.push(`- Colors: ${colors}`);
@@ -162,29 +158,39 @@ export function buildCompactPrompt(fullText, evidence, niche, url) {
 
   if (sections.length > 0) {
     const sectBlock = ["## Section Skeleton"];
-    for (const s of sections.slice(0, 6)) {
-      const cls = insp.sectionStructure?.[sections.indexOf(s)]?.classList || "";
-      sectBlock.push(`- ${s.role.toUpperCase()}: <${s.tag}> ${cls ? `[.${cls}]` : ""} ${s.isFullViewport ? "100vh" : ""}`);
+    const structMap = {};
+    const structArr = insp.sectionStructure || [];
+    for (const s of structArr) {
+      structMap[s.index] = s;
+    }
+    for (let i = 0; i < Math.min(sections.length, 6); i++) {
+      const s = sections[i];
+      const cls = structMap[i]?.classList || structArr[i]?.classList || "";
+      sectBlock.push(`- ${s.role.toUpperCase()}: <${s.tag}> ${cls ? `[.${cls}]` : ""} ${s.isFullViewport ? "100vh" : ""}${s.height ? ` h=${s.height}px` : ""}`);
     }
     parts.push(sectBlock.join("\n"));
   }
 
   let result = parts.join("\n\n---\n\n");
-  if (result.length > 12000) {
-    result = result.slice(0, 11500) + "\n\n*[truncated for size — see prompt.md for full]*\n";
+  if (result.length > 14000) {
+    result = result.slice(0, 13500) + "\n\n*[truncated for size — see prompt.md for full]*\n";
   }
 
   return result;
 }
 
-function extractFinalPrompt(text) {
+function extractBriefFromFinal(text) {
   if (!text || typeof text !== "string") return null;
-  if (!text.includes("# 15. Final Agent Prompt")) return null;
   const match = text.match(/# 15\. Final Agent Prompt[\s\S]*?(?=\n#\s+\d|$)/);
-  if (match) return match[0].trim();
-  const matchAlt = text.match(/# 15\. Final Agent Prompt[\s\S]*/);
-  if (matchAlt) return matchAlt[0].trim();
-  return null;
+  if (!match) return null;
+  const section = match[0];
+  const lines = section.split("\n").filter(l => {
+    const t = l.trim();
+    if (!t || t.startsWith("#") || t.startsWith("---") || t.startsWith("*")) return false;
+    if (t.length > 150) return false;
+    return t.includes("must") || t.includes("should") || t.includes("never") || t.includes("always") || t.includes("aim for") || t.includes("use") || t.includes("keep") || t.includes("ensure") || t.includes("install") || t.includes("match") || t.includes("implement") || t.includes("build") || t.includes("create") || t.includes("register") || t.includes("import") || t.includes("require") || t.includes("npm") || t.includes("gsap");
+  });
+  return lines.length > 0 ? lines.slice(0, 12).join("\n") : null;
 }
 
 function parsePromptSections(text) {

@@ -372,13 +372,13 @@ onProgress?.({ step: "css-features", message: "Analizando features CSS..." });
       }
 
       onProgress?.({ step: "screenshots", message: "Capturando viewports..." });
-      // Guard timeout: si captureViewportMatrix tarda más de 90s, continuar con evidencia vacía
+      const screenshotTimeout = Number(process.env.SCREENSHOT_TIMEOUT_MS || 90000);
       const visualEvidence = await Promise.race([
         captureViewportMatrix(page, screenshotsPath, preset),
         new Promise((resolve) => setTimeout(() => {
-          console.warn("[scraper] captureViewportMatrix timed out after 90s, continuing...");
+          console.warn(`[scraper] captureViewportMatrix timed out after ${screenshotTimeout}ms, continuing...`);
           resolve([]);
-        }, 90000))
+        }, screenshotTimeout))
       ]);
       result.visualEvidence = visualEvidence;
 

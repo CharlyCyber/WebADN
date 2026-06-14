@@ -126,25 +126,36 @@ export async function probeHoverInteractions(page, preset = "standard") {
         } catch (err) { console.debug("[hover] stylesheet rule parse:", err.message); }
       }
 
-      // Crear sandbox invisible en el DOM para realizar pruebas aisladas
-      const sandbox = document.createElement("div");
-      sandbox.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1000px;height:1000px;visibility:hidden;opacity:0;pointer-events:none;";
-      document.body.appendChild(sandbox);
+      // Phase 3: for each target, probe hover effects with sandbox fallback
+      let useSandbox = true;
+      let sandbox = null;
 
-      // Phase 3: for each target, clone into sandbox and check hover effects
+      try {
+        sandbox = document.createElement("div");
+        sandbox.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1000px;height:1000px;visibility:hidden;opacity:0;pointer-events:none;";
+        document.body.appendChild(sandbox);
+      } catch {
+        useSandbox = false;
+        console.debug("[hover] sandbox creation blocked (CSP?), falling back to inline probe");
+      }
+
       for (const t of allTargets) {
         const el = t.element;
-        
-        let clone;
-        try {
-          clone = el.cloneNode(true);
-          sandbox.appendChild(clone);
-        } catch (err) {
-          console.debug("[hover] clone fail:", err.message);
-          continue;
+        let probeEl;
+
+        if (useSandbox) {
+          try {
+            probeEl = el.cloneNode(true);
+            sandbox.appendChild(probeEl);
+          } catch {
+            console.debug("[hover] clone fail, skipping:", t.selector);
+            continue;
+          }
+        } else {
+          probeEl = el;
         }
 
-        const before = readStyles(clone);
+        const before = readStyles(probeEl);
         let anyChange = false;
 
         for (const rule of hoverRules) {
@@ -152,7 +163,7 @@ export async function probeHoverInteractions(page, preset = "standard") {
             const baseSel = rule.selector.replace(/:hover[^,]*/g, "").trim();
             if (baseSel && el.matches(baseSel)) {
               for (const [prop, val] of Object.entries(rule.props)) {
-                clone.style.setProperty(prop, val, "important");
+                probeEl.style.setProperty(prop, val, "important");
               }
               anyChange = true;
             }
@@ -162,7 +173,7 @@ export async function probeHoverInteractions(page, preset = "standard") {
         }
 
         if (anyChange) {
-          const after = readStyles(clone);
+          const after = readStyles(probeEl);
           const changes = {};
           for (const k of keys) {
             if (before[k] !== after[k]) {
@@ -180,17 +191,15 @@ export async function probeHoverInteractions(page, preset = "standard") {
             });
           }
         }
-        
-        // Limpiar el clon para la siguiente iteración
-        try {
-          clone.remove();
-        } catch (err) { console.debug("[hover] clone remove:", err.message); }
+
+        if (useSandbox && probeEl && probeEl.remove) {
+          try { probeEl.remove(); } catch {}
+        }
       }
 
-      // Eliminar el sandbox al finalizar
-      try {
-        sandbox.remove();
-      } catch (err) { console.debug("[hover] sandbox remove:", err.message); }
+      if (sandbox && sandbox.remove) {
+        try { sandbox.remove(); } catch {}
+      }
 
       return results;
     }, maxTargets);

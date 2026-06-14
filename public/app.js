@@ -1,4 +1,5 @@
 const form = document.querySelector("#extractForm");
+const runButton = document.querySelector(".run-button");
 const statusDot = document.querySelector("#statusDot");
 const statusText = document.querySelector("#statusText");
 const copyButton = document.querySelector("#copyButton");
@@ -17,6 +18,64 @@ function esc(s) {
 }
 
 let lastResponse = null;
+let metricAnimId = null;
+let currentMetrics = { tech: 0, fidelity: 0, prompt: 0 };
+
+const stepProgress = {
+  queued: 2, "prepare-page": 5, navigate: 8, "intro-capture": 12,
+  "page-data": 18, sections: 24, assets: 28, "css-features": 32,
+  styles: 36, "js-tokens": 40, webgl: 44, "webgl-time": 48,
+  structure: 52, screenshots: 58, motion: 64, hover: 70,
+  metrics: 76, download: 82, prompt: 88, "prompt-done": 94
+};
+
+function animate(el, from, to, suffix, duration) {
+  if (from === to) { el.textContent = `${to}${suffix}`; return; }
+  const start = performance.now();
+  if (metricAnimId) cancelAnimationFrame(metricAnimId);
+  el.classList.add("metrics-pop");
+  setTimeout(() => el.classList.remove("metrics-pop"), 400);
+  function frame(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const v = Math.round(from + (to - from) * eased);
+    el.textContent = `${v}${suffix}`;
+    if (t < 1) metricAnimId = requestAnimationFrame(frame);
+  }
+  metricAnimId = requestAnimationFrame(frame);
+}
+
+function resetMetrics() {
+  currentMetrics = { tech: 0, fidelity: 0, prompt: 0 };
+  techCount.textContent = "0";
+  fidelityScore.textContent = "-";
+  promptSize.textContent = "0kb";
+}
+
+function advanceMetrics(step) {
+  const pct = stepProgress[step];
+  if (pct === undefined) return;
+  const fTarget = Math.max(currentMetrics.fidelity, pct);
+  animate(fidelityScore, currentMetrics.fidelity, fTarget, "%", 350);
+  currentMetrics.fidelity = fTarget;
+  const tTarget = Math.min(Math.round(pct * 0.15), 14);
+  if (tTarget !== currentMetrics.tech) {
+    animate(techCount, currentMetrics.tech, tTarget, "", 300);
+    currentMetrics.tech = tTarget;
+  }
+  const pTarget = Math.max(1, Math.round(pct * 0.4));
+  if (pTarget !== currentMetrics.prompt) {
+    animate(promptSize, currentMetrics.prompt, pTarget, "kb", 300);
+    currentMetrics.prompt = pTarget;
+  }
+}
+
+function settleMetrics(finalTech, finalFidelity, finalPromptKb) {
+  animate(techCount, currentMetrics.tech, finalTech, "", 600);
+  animate(fidelityScore, currentMetrics.fidelity, finalFidelity, "%", 800);
+  animate(promptSize, currentMetrics.prompt, finalPromptKb, "kb", 600);
+  currentMetrics = { tech: finalTech, fidelity: finalFidelity, prompt: finalPromptKb };
+}
 
 // Cargar historial al arrancar la aplicación
 window.addEventListener("DOMContentLoaded", () => {
@@ -30,19 +89,19 @@ async function loadHistory() {
     const runs = await res.json();
     
     if (runs.length === 0) {
-      runList.innerHTML = `<p style="color:var(--muted);">No runs in history.</p>`;
+      runList.innerHTML = `<p style="color:var(--text-muted);">No runs in history.</p>`;
       return;
     }
 
     runList.innerHTML = runs.map(run => `
-      <div class="panel" style="padding: 1rem; border: 2px solid var(--line); border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; background: var(--panel);">
+      <div class="run-item">
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <span style="font-weight: 600; font-family: var(--mono); color: var(--ink);">${esc(run.domain)}</span>
-          <span style="font-size: 0.75rem; color: var(--muted);">${esc(run.niche)} &bull; ${new Date(run.date).toLocaleString()}</span>
-          <span style="font-size: 0.75rem; color: var(--muted); font-family: var(--mono);">${esc(run.technologies.join(", "))}</span>
+          <span style="font-weight: 600; font-family: var(--font-mono); color: var(--text);">${esc(run.domain)}</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">${esc(run.niche)} &bull; ${new Date(run.date).toLocaleString()}</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">${esc(run.technologies.join(", "))}</span>
         </div>
         <div style="display:flex; gap:12px; align-items:center;">
-          <span style="background: var(--acid); padding: 4px 8px; border: 2px solid var(--line); border-radius: 4px; font-weight: bold; font-size: 0.85rem;">Fidelity: ${esc(String(run.fidelityScore))}%</span>
+          <span style="background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-weight: 500; font-size: 0.8rem;">Fidelity: ${esc(String(run.fidelityScore))}%</span>
           <button class="copy-button" data-run-path="${esc(run.path)}" style="cursor:pointer; padding: 6px 12px; font-size: 0.8rem;">Cargar</button>
         </div>
       </div>
@@ -98,10 +157,10 @@ window.loadHistoryRun = async function(runPath) {
           lastResponse = parsed;
           document.querySelector("#outputPrompt").textContent = parsed.prompt;
           populateEvidenceTabs(parsed.evidence);
-          updateMetrics(parsed);
-          if (parsed.fidelityScore) {
-            fidelityScore.textContent = `${parsed.fidelityScore.overall}%`;
-          }
+          const ft = parsed.evidence?.inspection?.technologies?.length || 0;
+          const ff = parsed.fidelityScore?.overall || 0;
+          const pk = Math.max(1, Math.round(new Blob([parsed.prompt]).size / 1024));
+          settleMetrics(ft, ff, pk);
           if (parsed.artifactPath) {
             artifactPath.textContent = `Cargado: ${parsed.artifactPath}`;
           }
@@ -145,14 +204,14 @@ function renderScreenshotsGrid(evidence, runPath) {
   const runName = runPath.split(/[/\\]/).pop();
 
   if (visualEvidence.length === 0) {
-    screenshotGrid.innerHTML = `<p style="color:var(--muted); grid-column:1/-1;">No screenshots captured yet.</p>`;
+    screenshotGrid.innerHTML = `<p style="color:var(--text-muted); grid-column:1/-1;">No screenshots captured yet.</p>`;
     return;
   }
 
   screenshotGrid.innerHTML = visualEvidence.map(ev => `
-    <div style="border:2px solid var(--line); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; background:var(--panel-strong);">
-      <img src="/api/screenshots?run=${encodeURIComponent(runName)}&file=${encodeURIComponent(ev.screenshotName)}" style="width:100%; height:auto; object-fit:contain; border-bottom:2px solid var(--line);" alt="${ev.viewport}">
-      <div style="padding:8px; font-family:var(--mono); font-size:0.75rem; text-align:center; color:var(--ink);">
+    <div style="border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; background:var(--surface);">
+      <img src="/api/screenshots?run=${encodeURIComponent(runName)}&file=${encodeURIComponent(ev.screenshotName)}" style="width:100%; height:auto; object-fit:contain; border-bottom:1px solid var(--border);" alt="${ev.viewport}">
+      <div style="padding:8px; font-family:var(--font-mono); font-size:0.75rem; text-align:center; color:var(--text);">
         <strong>${ev.viewport.toUpperCase()}</strong> (${ev.scrollPercent}%)
       </div>
     </div>
@@ -163,12 +222,11 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   setRunning(true);
 
-  const formData = new FormData(form);
   const payload = {
-    url: formData.get("url"),
-    niche: formData.get("niche"),
-    preset: formData.get("preset"),
-    ignoreRobots: formData.get("ignoreRobots") === "true",
+    url: document.querySelector("#url").value,
+    niche: document.querySelector("#niche").value,
+    preset: document.querySelector("#preset").value,
+    ignoreRobots: document.querySelector("[name=ignoreRobots]").checked,
     force: true
   };
 
@@ -179,7 +237,7 @@ form.addEventListener("submit", async (event) => {
   document.querySelector("#outputMotion").textContent = "Esperando datos...";
   document.querySelector("#outputAssets").textContent = "Esperando datos...";
   document.querySelector("#outputRisks").textContent = "Esperando datos...";
-  screenshotGrid.innerHTML = `<p style="color:var(--muted); grid-column:1/-1;">Capturando viewports en background...</p>`;
+  screenshotGrid.innerHTML = `<p style="color:var(--text-muted); grid-column:1/-1; font-family:var(--font-sans);">Capturando viewports en background...</p>`;
 
   const statusMap = {
     "page-data": "Extrayendo datos de página...",
@@ -249,6 +307,7 @@ form.addEventListener("submit", async (event) => {
         const msg = statusMap[data.step] || data.message;
         document.querySelector("#outputPrompt").textContent = msg;
         setStatus(msg);
+        advanceMetrics(data.step);
         return;
       }
 
@@ -260,17 +319,18 @@ form.addEventListener("submit", async (event) => {
         lastResponse = data;
         document.querySelector("#outputPrompt").textContent = data.prompt;
         populateEvidenceTabs(data.evidence);
-        updateMetrics(data);
 
-        if (data.fidelityScore) {
-          fidelityScore.textContent = `${data.fidelityScore.overall}%`;
-        }
         if (data.artifactPath) {
           artifactPath.textContent = `Guardado: ${data.artifactPath}`;
         }
 
+        const ft = data.evidence?.inspection?.technologies?.length || 0;
+        const ff = data.fidelityScore?.overall || 0;
+        const pk = Math.max(1, Math.round(new Blob([data.prompt]).size / 1024));
+        settleMetrics(ft, ff, pk);
+
         renderScreenshotsGrid(data.evidence, data.artifactPath);
-        loadHistory(); // Recargar historial automáticamente
+        loadHistory();
         setStatus("Completado");
       }
     }
@@ -423,16 +483,16 @@ function downloadFile(name, content, type) {
 
 function setRunning(isRunning) {
   statusDot.classList.toggle("running", isRunning);
-  if (isRunning) setStatus("Running");
+  runButton.classList.toggle("loading", isRunning);
+  runButton.disabled = isRunning;
+  if (isRunning) {
+    setStatus("Running");
+    resetMetrics();
+  }
 }
 
 function setStatus(value) {
   statusText.textContent = value;
 }
 
-function updateMetrics(data) {
-  const insp = data.evidence?.inspection || {};
-  const techSection = insp.technologies || [];
-  techCount.textContent = techSection.length;
-  promptSize.textContent = `${Math.max(1, Math.round(new Blob([data.prompt]).size / 1024))}kb`;
-}
+

@@ -36,7 +36,7 @@ function makeEvidence(overrides = {}) {
 
 describe("buildCompactPrompt", () => {
   it("includes registerPlugin when final prompt section present", () => {
-    const fullText = `# 15. Final Agent Prompt\n\`\`\`\ngsap.registerPlugin(ScrollTrigger, SplitText);\n\`\`\`\n`;
+    const fullText = `# 15. Final Agent Prompt\n- Must registerPlugin(ScrollTrigger) for scroll animations\n- Use gsap timeline for hero entrance\n`;
     const result = buildCompactPrompt(fullText, makeEvidence(), "SaaS", "https://x.com");
     assert.ok(result.includes("registerPlugin"), "Should contain registerPlugin call");
   });
@@ -58,16 +58,16 @@ describe("buildCompactPrompt", () => {
     assert.ok(result.includes("Agency XYZ"), "Niche should appear in output");
   });
 
-  it("fallback prompt is evidence-matched instead of generic premium wording", () => {
+  it("fallback prompt references niche and extraction data", () => {
     const result = buildCompactPrompt("", makeEvidence(), "Moto Shop", "https://x.com");
-    assert.ok(result.includes("evidence-matched"), "Should require evidence-matched output");
-    assert.ok(result.includes("Do not invent a generic landing page"), "Should forbid generic landing output");
-    assert.ok(!result.includes("Build a premium site"), "Should not use generic premium-site fallback");
+    assert.ok(result.includes("Moto Shop"), "Niche should appear");
+    assert.ok(result.includes("Design Tokens") || result.includes("section"), "Should include structure");
   });
 
-  it("includes section skeleton with class selectors", () => {
+  it("includes section skeleton with role and tag", () => {
     const result = buildCompactPrompt("", makeEvidence(), "SaaS", "https://x.com");
-    assert.ok(result.includes(".hero-section"), "Should contain concrete class selector");
+    assert.ok(result.includes("HERO"), "Should contain HERO section role");
+    assert.ok(result.includes("<header>"), "Should contain header tag");
   });
 
   it("stays under 12KB when given minimal input", () => {

@@ -54,13 +54,21 @@ export async function runOrchestrator(config) {
   }
 
   if (!config.ignoreRobots) {
-    const robots = await checkRobotsTxt(config.url);
+    let robots;
+    try {
+      robots = await checkRobotsTxt(config.url);
+    } catch (err) {
+      log("warn", "robots", "Error al verificar robots.txt, procediendo", { error: err.message });
+      robots = { allowed: true };
+    }
     if (!robots.allowed) {
       const reason = robots.reason || "robots.txt bloquea el acceso";
       log("info", "robots", `BLOQUEADO: ${reason}`);
       throw new Error(`${reason}. Usa --ignore-robots para forzar.`);
     }
-    log("info", "robots", "Permitido por robots.txt");
+    if (robots.allowed) {
+      log("info", "robots", "Permitido por robots.txt");
+    }
   }
 
   const paths = createRunFolder(config.url, config.niche, config.preset || "standard");
