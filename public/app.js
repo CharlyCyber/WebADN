@@ -1,3 +1,8 @@
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
+
 const form = document.querySelector("#extractForm");
 const runButton = document.querySelector(".run-button");
 const statusDot = document.querySelector("#statusDot");
