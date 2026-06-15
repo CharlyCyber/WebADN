@@ -1,10 +1,9 @@
-node_modules/
-runs/
-*.log
-server.err
+```
+# Environment
 .env
-.DS_Store
-Thumbs.db
-.kilo/
-.playwright-mcp/
-gemini-code-*.md
+.env.local
+*.env.*
+
+# Dependencies
+node_modules/
+```
