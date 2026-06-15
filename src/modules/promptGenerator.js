@@ -1,6 +1,6 @@
 import { composeMegaBrief } from "./briefComposer.js";
 
-export async function generateMasterPrompt({ url, niche, inspection, motionAnalysis, conversionPlan, knowledgeMatrix, evidence }) {
+export async function generateMasterPrompt({ url, niche, inspection, motionAnalysis, conversionPlan, knowledgeMatrix, evidence, llmInterpretation }) {
   if (evidence) {
     const fidelityLevel = evidence.fidelityLevel || "standard";
     const briefEvidence = {
@@ -9,7 +9,8 @@ export async function generateMasterPrompt({ url, niche, inspection, motionAnaly
       conversionPlan,
       knowledgeMatrix,
       niche,
-      url
+      url,
+      llmInterpretation: llmInterpretation || null  // ← pasar interpretación LLM al composer
     };
     return await composeMegaBrief(briefEvidence, fidelityLevel);
   }
