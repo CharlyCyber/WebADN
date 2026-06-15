@@ -192,7 +192,7 @@ function buildReferenceProfile(inspection, designLanguage) {
   };
 }
 
-function composeFidelityTarget(profile, niche) {
+function composeFidelityTarget(profile, niche, confidencePrefix = "") {
   const colors = profile.colorRoles
     .slice(0, 8)
     .map((entry) => `${entry.role}: ${entry.color}`)
@@ -211,7 +211,7 @@ function composeFidelityTarget(profile, niche) {
 
   return `# Reference Fidelity Target
 
-Aim for an 80-90% resemblance in visual grammar and interaction feel while replacing brand, copy, assets, names, logos, and business content for "${niche}".
+${confidencePrefix}Aim for an 80-90% resemblance in visual grammar and interaction feel while replacing brand, copy, assets, names, logos, and business content for "${niche}".
 
 Preserve these reference signals:
 - Design language: ${profile.designLanguage.label}; ${profile.designLanguage.signals.join("; ") || "signals inferred from extracted layout and style evidence"}.
@@ -251,25 +251,41 @@ export async function composeMegaBrief(evidence, fidelityLevel = "standard") {
   const { inspection, visualRhythm, conversionPlan, niche, url } = trimmed;
   const designLanguage = trimmed.designLanguage || classifyDesignLanguage(trimmed);
   const referenceProfile = buildReferenceProfile(inspection, designLanguage);
+  
+  // Calcular prefijos de confianza basados en fidelityScore
+  const fidelityScore = evidence.fidelityScore?.overall || 0;
+  const confidencePrefix = getConfidencePrefix(fidelityScore);
+  
+  // Extraer scores individuales para prefijos específicos
+  const motionConfidence = evidence.fidelityScore?.motionConfidence || 1;
+  const visualConfidence = evidence.fidelityScore?.visualConfidence || 1;
+  const techConfidence = evidence.fidelityScore?.techConfidence || 1;
+  
+  const motionPrefix = getConfidencePrefix(motionConfidence * 100);
+  const visualPrefix = getConfidencePrefix(visualConfidence * 100);
+  const techPrefix = getConfidencePrefix(techConfidence * 100);
+  
+  // Integrar interpretación LLM si está disponible
+  const llmInterpretation = evidence.llmInterpretation || null;
 
   const steps = [
-    () => composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm),
+    () => composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm, confidencePrefix, llmInterpretation),
     () => composeIntroTimeline(evidence),
-    () => composeFidelityTarget(referenceProfile, niche),
-    () => composeDnaSummary(inspection, designLanguage, referenceProfile),
-    () => composeDesignTokens(inspection),
-    () => composeCssArchitecture(inspection, fidelityLevel),
+    () => composeFidelityTarget(referenceProfile, niche, confidencePrefix),
+    () => composeDnaSummary(inspection, designLanguage, referenceProfile, confidencePrefix, llmInterpretation),
+    () => composeDesignTokens(inspection, techPrefix),
+    () => composeCssArchitecture(inspection, fidelityLevel, techPrefix),
     () => composeComponentArchitecture(inspection),
     () => composeSectionBuildSpec(inspection, fidelityLevel),
-    () => composeMotionTimeline(inspection),
-    () => composeInteractionRecipes(inspection),
-    () => composeAssetRequirements(inspection),
+    () => composeMotionTimeline(inspection, motionPrefix),
+    () => composeInteractionRecipes(inspection, motionPrefix),
+    () => composeAssetRequirements(inspection, visualPrefix),
     () => composeResponsiveRules(inspection, visualRhythm),
     () => composeCroAdaptation(conversionPlan, inspection, niche, fidelityLevel),
     () => composePerformanceBudget(conversionPlan, inspection),
     () => composeAccessibilityConstraints(conversionPlan),
     () => composeAcceptanceCriteria(inspection, niche),
-    () => composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile),
+    () => composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile, confidencePrefix, llmInterpretation),
   ];
 
   const sections = [];
@@ -281,7 +297,13 @@ export async function composeMegaBrief(evidence, fidelityLevel = "standard") {
   return sections.join("\n\n---\n\n");
 }
 
-function composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm) {
+function getConfidencePrefix(fidelityScore) {
+  if (fidelityScore >= 80) return ""; // sin prefijo
+  if (fidelityScore >= 50) return "⚠️ DATOS PARCIALES: ";
+  return "🔴 BAJA CONFIANZA — inferido, no extraído: ";
+}
+
+function composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm, confidencePrefix = "", llmInterpretation = null) {
   const sectionCount = (inspection.sections || []).length;
   const motionCount = (inspection.motionRecipes || []).length;
   const cssComplexity = inspection.cssFeatures?.complexityScore || 0;
@@ -298,15 +320,23 @@ function composeExecutiveDiagnosis(inspection, designLanguage, visualRhythm) {
   const viewportCount = new Set((inspection.visualEvidence || []).map((e) => e.viewport)).size;
   if (viewportCount) rhythm.push(`${viewportCount} viewport(s) captured`);
 
+  // Añadir sección de interpretación LLM si está disponible
+  const llmSection = llmInterpretation?.used ? `
+**IA Interpretation:** ${llmInterpretation.provider ? `(via ${llmInterpretation.provider}, ${Math.round(llmInterpretation.confidence * 100)}% confianza)` : ""}
+${llmInterpretation.interpretation ? `\n${llmInterpretation.interpretation}\n` : ""}
+${llmInterpretation.patterns?.length ? `\n**Patrones Inferidos:**\n${llmInterpretation.patterns.map(p => `- ${p}`).join("\n")}\n` : ""}
+${llmInterpretation.directives?.length ? `\n**Directivas de Nicho:**\n${llmInterpretation.directives.map(d => `- ${d}`).join("\n")}\n` : ""}
+${llmInterpretation.gaps?.length ? `\n**Gaps de Extracción:**\n${llmInterpretation.gaps.map(g => `- ${g}`).join("\n")}\n` : ""}` : "";
+
   return `# 1. Executive Design Diagnosis
 
-**Design Language:** ${designLanguage.label} (confidence: ${Math.round(designLanguage.confidence * 100)}%)
+${confidencePrefix}**Design Language:** ${designLanguage.label} (confidence: ${Math.round(designLanguage.confidence * 100)}%)
 **Signals:** ${designLanguage.signals.join("; ")}
 **Sections:** ${sectionCount} major sections detected
 **Motion Complexity:** ${motionCount} scroll-linked animations
 **CSS Complexity:** ${cssComplexity}/100
 **Visual Rhythm:** ${rhythm.length ? rhythm.join("; ") : "basic layout"}
-
+${llmSection}
 This reference uses a ${designLanguage.label} approach with ${motionCount > 3 ? "heavy" : motionCount > 0 ? "moderate" : "minimal"} motion choreography and ${cssComplexity > 60 ? "advanced" : cssComplexity > 30 ? "moderate" : "standard"} CSS effects.`;
 }
 
@@ -376,7 +406,7 @@ function composeIntroTimeline(evidence) {
   return parts.join("");
 }
 
-function composeDnaSummary(inspection, designLanguage, profile) {
+function composeDnaSummary(inspection, designLanguage, profile, confidencePrefix = "", llmInterpretation = null) {
   const technologies = inspection.technologies || [];
   const layout = inspection.layout?.dominant || "unknown";
   const fonts = inspection.tokens?.fonts || [];
@@ -384,19 +414,24 @@ function composeDnaSummary(inspection, designLanguage, profile) {
   const effects = profile.cssEffects.slice(0, 6).map((effect) => effect.feature).join(", ");
   const motion = `${profile.motionRecipes.length} scroll recipe(s), ${profile.hoverEffects.length} hover interaction(s)`;
 
+  // Añadir insights de LLM si disponibles
+  const llmInsight = llmInterpretation?.used && llmInterpretation.patterns?.length 
+    ? `\n**IA-Enhanced Patterns:** ${llmInterpretation.patterns.slice(0, 3).join("; ")}`
+    : "";
+
   return `# 2. Reference DNA Summary
 
-**Stack:** ${technologies.length ? technologies.join(", ") : "No explicit framework signatures; build lean"}
+${confidencePrefix}**Stack:** ${technologies.length ? technologies.join(", ") : "No explicit framework signatures; build lean"}
 **Layout:** ${layout}
 **Typography:** ${fonts.length ? fonts.join(", ") : "No reliable font evidence extracted"}
 **Palette:** ${colors.length ? colors.slice(0, 8).join(", ") : "No reliable palette evidence extracted"}
 **Effects:** ${effects || "No advanced CSS effect evidence"}
 **Motion:** ${motion}
 **Design Language:** ${designLanguage.label}
-**Key Differentiators:** ${designLanguage.signals.slice(0, 3).join(", ") || "Insufficient visual-language evidence; rely on extracted sections, tokens, screenshots, and CSS rules only"}`;
+**Key Differentiators:** ${designLanguage.signals.slice(0, 3).join(", ") || "Insufficient visual-language evidence; rely on extracted sections, tokens, screenshots, and CSS rules only"}${llmInsight}`;
 }
 
-function composeDesignTokens(inspection) {
+function composeDesignTokens(inspection, techPrefix = "") {
   const tokens = inspection.tokens || {};
   const cssVars = tokens.cssVariables || {};
   const styleVars = inspection.styles?.cssVariableMap || {};
@@ -408,7 +443,7 @@ function composeDesignTokens(inspection) {
   const classifiedColors = classifyColorsByRole(inspection);
   const typeScale = extractTypeScale(inspection);
 
-  const parts = [`# 3. Design Token System\n`];
+  const parts = [`${techPrefix}# 3. Design Token System\n`];
 
   const colorGroups = {};
   for (const c of classifiedColors) {
@@ -473,10 +508,10 @@ function composeDesignTokens(inspection) {
 
 
 
-function composeCssArchitecture(inspection, fidelityLevel = "standard") {
+function composeCssArchitecture(inspection, fidelityLevel = "standard", techPrefix = "") {
   const styles = inspection.styles;
   if (!styles) {
-    return `# 4. CSS Architecture
+    return `${techPrefix}# 4. CSS Architecture
 
 No CSSOM style rules were extracted. Do not invent a generic CSS architecture; use sectionStructure computed styles, visual screenshots, and downloaded stylesheets as the source of truth, or rerun in surgical mode.`;
   }
@@ -491,7 +526,7 @@ No CSSOM style rules were extracted. Do not invent a generic CSS architecture; u
 
   const parts = [];
 
-  parts.push(`# 4. CSS Architecture (${isFull ? "full extraction" : fidelityLevel === "compact" ? "key selectors" : "standard extraction"})
+  parts.push(`${techPrefix}# 4. CSS Architecture (${isFull ? "full extraction" : fidelityLevel === "compact" ? "key selectors" : "standard extraction"})
 
 ## Extracted Stylesheets
 - **Total CSS rules:** ${styles.totalRuleCount}
@@ -770,7 +805,7 @@ No section map available. Do not invent a default landing structure. Reconstruct
   return parts.join("");
 }
 
-function composeMotionTimeline(inspection) {
+function composeMotionTimeline(inspection, motionPrefix = "") {
   const recipes = inspection.motionRecipes || [];
   const hints = inspection.animationHints || [];
   const webglAnimations = inspection.webgl?.animations;
@@ -782,7 +817,7 @@ function composeMotionTimeline(inspection) {
   const hasTimeUniforms = webglAnimations?.timeAnalysis?.length > 0;
   const hasDynamicUniforms = webglAnimations?.uniformsOverTime && Object.keys(webglAnimations.uniformsOverTime).length > 0;
 
-  const parts = [`# 7. Motion Timeline Recipes\n\n`];
+  const parts = [`${motionPrefix}# 7. Motion Timeline Recipes\n\n`];
 
   if (Object.keys(gsapAttrs).length > 0) {
     parts.push(`**GSAP/data animation attributes detected:**\n`);
@@ -858,11 +893,11 @@ function composeMotionTimeline(inspection) {
   return parts.join("");
 }
 
-function composeInteractionRecipes(inspection) {
+function composeInteractionRecipes(inspection, motionPrefix = "") {
   const effects = inspection.hoverEffects || [];
 
   if (!effects.length) {
-    return `# 8. Interaction Recipes
+    return `${motionPrefix}# 8. Interaction Recipes
 
 No hover interactions were measured. Do not invent generic hover behavior; preserve extracted CSS transitions, cursor rules, clip-path effects, and button/link states from the selector and section blueprints.`;
   }
@@ -874,7 +909,7 @@ No hover interactions were measured. Do not invent generic hover behavior; prese
     grouped[type].push(effect);
   }
 
-  const parts = [`# 8. Interaction Recipes\n\n${effects.length} hover target(s) probed:\n`];
+  const parts = [`${motionPrefix}# 8. Interaction Recipes\n\n${effects.length} hover target(s) probed:\n`];
 
   for (const [type, items] of Object.entries(grouped)) {
     parts.push(`\n**${type}:** ${items.map((i) => `\`${i.selector}\` (${i.text || i.tag})`).join(", ")}\n`);
@@ -1053,7 +1088,7 @@ The implementation is not accepted unless:
 - ${motionCount > 0 ? `All ${motionCount} motion patterns are recreated with equivalent feel.` : "No unobserved motion is added; use only extracted CSS transitions/keyframes/effects or document the missing evidence."}`;
 }
 
-function composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile) {
+function composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile, confidencePrefix = "", llmInterpretation = null) {
   const { inspection, niche, url } = trimmed;
   const sections = inspection.sections || [];
   const recipes = inspection.motionRecipes || [];
@@ -1078,6 +1113,11 @@ function composeFinalAgentPrompt(trimmed, designLanguage, referenceProfile) {
   const installPackages = ["gsap"];
   if (hasLenis) installPackages.push("lenis");
   if (hasWebGL) installPackages.push("three");
+
+  // Añadir directivas de LLM si disponibles
+  const llmDirectives = llmInterpretation?.used && llmInterpretation.directives?.length
+    ? `\n=== IA DIRECTIVES FOR "${niche}" ===\n${llmInterpretation.directives.map(d => `- ${d}`).join("\n")}\n`
+    : "";
 
   const blueprints = [];
 
@@ -1281,6 +1321,7 @@ Reference: ${url}
 Target 80-90% resemblance in layout rhythm, layer order, typography scale, palette roles, motion timing, scroll behavior, hover feel, and WebGL/canvas treatment. Do not settle for a generic premium landing page. Every major visual choice must map back to an observed selector, token, screenshot, motion recipe, CSS feature, or WebGL finding in this brief.
 
 Do not copy original brand assets, logos, names, proprietary images, or text. Replace them with original "${niche}" content while preserving the reference's composition and interaction grammar.
+${llmDirectives}
 
 ${allBlueprint}
 === BOILERPLATE SETUP ===

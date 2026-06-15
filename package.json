@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "surgical-web-extractor",
   "version": "1.0.0",
   "description": "Local URL/video extractor and conversion-aware master prompt engine for premium web builds.",
@@ -26,7 +26,6 @@
   "license": "MIT",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "gsap": "^3.15.0",
     "playwright": "^1.49.1"
   },
   "engines": {

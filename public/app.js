@@ -1,8 +1,3 @@
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
-
 const form = document.querySelector("#extractForm");
 const runButton = document.querySelector(".run-button");
 const statusDot = document.querySelector("#statusDot");
@@ -10,6 +5,7 @@ const statusText = document.querySelector("#statusText");
 const copyButton = document.querySelector("#copyButton");
 const downloadPrompt = document.querySelector("#downloadPrompt");
 const downloadEvidence = document.querySelector("#downloadEvidence");
+const exportToAIStudio = document.querySelector("#exportToAIStudio");
 const techCount = document.querySelector("#techCount");
 const fidelityScore = document.querySelector("#fidelityScore");
 const promptSize = document.querySelector("#promptSize");
@@ -474,6 +470,52 @@ downloadPrompt.addEventListener("click", () => {
 downloadEvidence.addEventListener("click", () => {
   if (!lastResponse) return;
   downloadFile("evidence.json", JSON.stringify(lastResponse.evidence, null, 2), "application/json");
+});
+
+exportToAIStudio.addEventListener("click", () => {
+  if (!lastResponse) return;
+  
+  const niche = document.querySelector("#niche").value || "sitio web profesional";
+  const promptContent = lastResponse.prompt;
+  
+  // Crear un prompt en lenguaje natural estructurado para Google AI Studio
+  const aiStudioPrompt = `Crea el sitio web o landing page que aparece en el código adjunto.
+
+**CONTEXTO DEL PROYECTO:**
+- Nicho/Tipo de negocio: ${niche}
+- Debe ser completamente responsivo para todos los dispositivos (móvil, tablet, desktop)
+
+**INSTRUCCIONES:**
+Analiza el siguiente mega-prompt técnico que contiene toda la información extraída de un sitio web de referencia. Utiliza esta información para recrear un sitio web con la misma estructura, diseño, estilos, animaciones y funcionalidades.
+
+---
+
+${promptContent}
+
+---
+
+**REQUISITOS TÉCNICOS:**
+1. El sitio debe ser 100% responsivo y funcionar perfectamente en todos los dispositivos
+2. Mantén la fidelidad visual y estructural del sitio original
+3. Implementa todas las animaciones y efectos de motion descritos
+4. Asegúrate de que la tipografía, colores y spacing sean consistentes
+5. El código debe ser limpio, semántico y optimizado para SEO
+
+Genera el código completo del sitio web basándote en esta especificación técnica.`;
+
+  // Codificar el prompt para URL y abrir Google AI Studio
+  const encodedPrompt = encodeURIComponent(aiStudioPrompt);
+  const aiStudioUrl = `https://aistudio.google.com/app/prompts/new?prompt=${encodedPrompt}`;
+  
+  // Abrir en una nueva pestaña
+  window.open(aiStudioUrl, '_blank');
+  
+  // Feedback visual al usuario
+  const originalText = exportToAIStudio.textContent;
+  exportToAIStudio.textContent = "✓ Abierto";
+  setTimeout(() => {
+    exportToAIStudio.textContent = originalText;
+  }, 2000);
 });
 
 function downloadFile(name, content, type) {

@@ -8,6 +8,7 @@ import { computeVisualRhythm } from "./modules/visualDiff.js";
 import { computeFidelityScore } from "./modules/fidelityScore.js";
 import { classifyDesignLanguage } from "./modules/localVisionHeuristics.js";
 import { tryLocalLlm } from "./modules/localLlmAdapter.js";
+import { interpretEvidence as interpretWithLlm } from "./modules/llmInterpreter.js";
 import { checkRobotsTxt } from "./support/robotsChecker.js";
 import { log } from "./support/logger.js";
 import { readFile } from "node:fs/promises";
@@ -136,6 +137,24 @@ export async function runOrchestrator(config) {
   evidence.fidelityScore = fidelityScore;
   evidence.fidelityLevel = effectivePreset === "surgical" ? "surgical" : effectivePreset === "fast" ? "compact" : "standard";
 
+  // NUEVO: Capa de interpretación LLM central (Claude/OpenRouter)
+  let llmInterpretation = null;
+  if (process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY) {
+    config.onProgress?.({ step: "llm-interpret", message: "Interpretando evidencia con IA..." });
+    llmInterpretation = await interpretWithLlm({
+      evidence: inspection,
+      niche: config.niche,
+      knowledgeMatrix
+    });
+    if (llmInterpretation.used) {
+      evidence.llmInterpretation = llmInterpretation;
+      log("info", "llmInterpreter", "Interpretación LLM completada", {
+        provider: llmInterpretation.provider,
+        confidence: llmInterpretation.confidence
+      });
+    }
+  }
+
   const llmResult = await tryLocalLlm(buildLlmSummary(evidence));
   if (llmResult.used) {
     evidence.llmAnalysis = llmResult.result;
@@ -156,7 +175,8 @@ export async function runOrchestrator(config) {
     motionAnalysis,
     conversionPlan,
     knowledgeMatrix,
-    evidence
+    evidence,
+    llmInterpretation  // ← nuevo campo para el generador de prompts
   });
   const promptMs = Date.now() - promptStart;
   timings.composeMegaBrief = promptMs;
