@@ -1,0 +1,34 @@
+{
+  "name": "surgical-web-extractor",
+  "version": "1.0.0",
+  "description": "Local URL/video extractor and conversion-aware master prompt engine for premium web builds.",
+  "type": "module",
+  "bin": {
+    "surgical-extractor": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node ./src/cli.js",
+    "web": "node ./src/server.js",
+    "demo": "node ./src/cli.js --url https://example.com --niche \"premium architecture studio\" --dry-run",
+    "check": "node --check ./src/cli.js && node --check ./src/server.js && node --check ./src/orchestrator.js && node --check ./src/modules/scraper.js && node --check ./src/modules/knowledgeMatrix.js && node --check ./src/modules/visionEngine.js && node --check ./src/modules/conversionBrain.js && node --check ./src/modules/promptGenerator.js && node --check ./src/modules/briefComposer.js && node --check ./src/modules/fidelityScore.js && node --check ./src/modules/visualCapture.js && node --check ./src/modules/visualDiff.js && node --check ./src/modules/sectionMapper.js && node --check ./src/modules/assetExtractor.js && node --check ./src/modules/cssAnalyzer.js && node --check ./src/modules/motionSampler.js && node --check ./src/modules/interactionProbe.js && node --check ./src/modules/webglInspector.js && node --check ./src/modules/localVisionHeuristics.js && node --check ./src/modules/localLlmAdapter.js && node --check ./src/modules/styleExtractor.js && node --check ./src/modules/assetDownloader.js && node --check ./src/modules/structureExtractor.js && node --check ./src/support/urlSafety.js && node --check ./src/support/artifacts.js && node --check ./src/support/jobQueue.js && node --check ./src/support/robotsChecker.js && node --check ./src/support/autoInstall.js",
+    "test": "node --test tests/*.test.js",
+    "setup": "npm install && npx playwright install chromium",
+    "postinstall": "node -e \"console.log('Run: npm run setup')\"",
+    "verify": "npm run check && npm test"
+  },
+  "keywords": [
+    "playwright",
+    "scraping",
+    "cro",
+    "prompt-engineering",
+    "surgical"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "playwright": "^1.49.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

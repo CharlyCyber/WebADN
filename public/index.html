@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Surgical Web Extractor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="mast">
+        <div>
+          <p class="eyebrow">Surgical Extractor</p>
+          <h1>Prompt engine para diseccionar webs premium</h1>
+        </div>
+        <div class="status-plate" aria-live="polite">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Idle</span>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form class="panel control-panel" id="extractForm">
+          <div class="field span-2">
+            <label for="url">URL de referencia</label>
+            <input id="url" name="url" type="url" placeholder="https://ejemplo.com" required />
+          </div>
+
+          <div class="field span-2">
+            <label for="niche">Nicho / tipo de negocio</label>
+            <input id="niche" name="niche" type="text" placeholder="ej: estudio premium de arquitectura" required />
+          </div>
+
+          <div class="field span-2">
+            <label for="preset">Profundidad de análisis</label>
+            <select id="preset" name="preset">
+              <option value="fast">Fast (30s) — Stack, colores, secciones</option>
+              <option value="standard">Standard (2min) — + Screenshots, motion</option>
+              <option value="surgical" selected>Surgical (5min) — + Assets, hovers, WebGL</option>
+            </select>
+          </div>
+
+          <label class="field-checkbox span-2">
+            <input type="checkbox" name="ignoreRobots" value="true" />
+            <span>Ignorar robots.txt (solo con permiso del owner)</span>
+          </label>
+
+          <button class="run-button" type="submit">
+            <div class="spinner"></div>
+            <span>Extraer y generar prompt</span>
+          </button>
+        </form>
+
+        <aside class="panel telemetry">
+          <div>
+            <span class="metric-label">Stack</span>
+            <strong id="techCount">0</strong>
+          </div>
+          <div>
+            <span class="metric-label">Fidelity</span>
+            <strong id="fidelityScore">-</strong>
+          </div>
+          <div>
+            <span class="metric-label">Prompt</span>
+            <strong id="promptSize">0kb</strong>
+          </div>
+        </aside>
+
+        <section class="panel output-panel">
+          <div class="output-head">
+            <div class="tab-bar" id="tabBar">
+              <button class="tab active" data-tab="prompt">Prompt</button>
+              <button class="tab" data-tab="sections">Sections</button>
+              <button class="tab" data-tab="styles">Styles</button>
+              <button class="tab" data-tab="motion">Motion</button>
+              <button class="tab" data-tab="assets">Assets</button>
+              <button class="tab" data-tab="risks">Risks</button>
+              <button class="tab" data-tab="screenshots">Screenshots</button>
+              <button class="tab" data-tab="history">History</button>
+            </div>
+            <div class="output-actions">
+              <button class="copy-button" id="copyButton" type="button">Copy</button>
+              <button class="copy-button" id="downloadPrompt" type="button">Download</button>
+              <button class="copy-button" id="downloadEvidence" type="button">Evidence</button>
+              <button class="copy-button" id="exportToAIStudio" type="button" title="Export to Google AI Studio">🚀 AI Studio</button>
+            </div>
+          </div>
+          <div class="tab-content">
+            <pre id="outputPrompt" class="tab-pane active">El resultado aparecerá aquí.</pre>
+            <pre id="outputSections" class="tab-pane">Section map will appear here.</pre>
+            <pre id="outputStyles" class="tab-pane">CSS styles will appear here.</pre>
+            <pre id="outputMotion" class="tab-pane">Motion recipes will appear here.</pre>
+            <pre id="outputAssets" class="tab-pane">Asset manifest will appear here.</pre>
+            <pre id="outputRisks" class="tab-pane">Risk findings will appear here.</pre>
+            <div id="outputScreenshots" class="tab-pane">
+              <div class="screenshot-grid" id="screenshotGrid">
+                <p style="color:var(--text-muted); grid-column:1/-1;">No screenshots captured yet.</p>
+              </div>
+            </div>
+            <div id="outputHistory" class="tab-pane">
+              <div class="run-list" id="runList">
+                <p style="color:var(--text-muted);">No runs in history.</p>
+              </div>
+            </div>
+          </div>
+          <div id="artifactPath" class="artifact-path"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

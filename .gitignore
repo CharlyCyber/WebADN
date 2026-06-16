@@ -1,0 +1,56 @@
+```
+# Build artifacts
+*.js.map
+*.min.js
+*.bundle.js
+dist/
+build/
+public/dist/
+public/build/
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.Python
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.tox/
+.coverage
+nosetests.xml
+
+# Local Runs & Data
+runs/
+data/
