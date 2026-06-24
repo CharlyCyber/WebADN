@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Surgical Web Extractor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Fira+Code:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="mast">
+        <div>
+          <p class="eyebrow">Surgical Extractor</p>
+          <h1>Prompt engine para diseccionar webs premium</h1>
+          <p class="mast-caption">Foundations / Dark Neumorphic &middot; Surface Tokens &middot; Border 1px subtle</p>
+        </div>
+        <div class="status-plate" aria-live="polite">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Idle</span>
+          <button class="copy-button stop-button" id="stopServer" type="button" title="Detiene el servidor en background">⏻ Stop</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form class="panel control-panel" id="extractForm">
+          <div class="field span-2">
+            <label for="url">URL de referencia</label>
+            <input id="url" name="url" type="url" placeholder="https://ejemplo.com" required />
+          </div>
+
+          <div class="panel-section-title">
+            <span>Identidad del proyecto</span>
+            <span class="panel-section-meta">Client Brief</span>
+          </div>
+
+          <div class="field">
+            <label for="brandName">Nombre del proyecto / marca</label>
+            <input id="brandName" name="brandName" type="text" placeholder="ej: Atelier Norden" />
+          </div>
+
+          <div class="field">
+            <label for="niche">Nicho / tipo de negocio</label>
+            <input id="niche" name="niche" type="text" placeholder="ej: estudio premium de arquitectura" required />
+          </div>
+
+          <div class="field">
+            <label for="audience">Audiencia objetivo</label>
+            <input id="audience" name="audience" type="text" placeholder="ej: propietarios de viviendas de lujo 35-60" />
+          </div>
+
+          <div class="field">
+            <label for="tone">Tono de voz</label>
+            <select id="tone" name="tone">
+              <option value="">— Selecciona —</option>
+              <option value="profesional">Profesional</option>
+              <option value="cercano">Cercano</option>
+              <option value="lujoso">Lujoso / aspiracional</option>
+              <option value="tecnico">Técnico / experto</option>
+              <option value="inspirador">Inspirador</option>
+            </select>
+          </div>
+
+          <div class="panel-section-title">
+            <span>Estructura del sitio</span>
+            <span class="panel-section-meta">Sections Blueprint</span>
+          </div>
+
+          <div class="sections-block">
+            <div id="sectionsList" class="sections-list">
+              <!-- filas dinámicas inyectadas por app.js -->
+            </div>
+            <button class="add-section" type="button" id="addSection">＋ Añadir sección</button>
+          </div>
+
+          <div class="panel-section-title">
+            <span>Notas y requisitos</span>
+            <span class="panel-section-meta">Open Brief</span>
+          </div>
+
+          <div class="field span-2">
+            <label for="extraBrief">Notas adicionales / copy / referencias</label>
+            <textarea id="extraBrief" name="extraBrief" placeholder="Pega aquí TODO lo demás: paleta de colores propia, tipografías, ejemplos de copy, requisitos especiales, URLs de inspiración, objeciones de los clientes, beneficios clave, diferenciadores... Cuanto más contexto, mejor el resultado."></textarea>
+          </div>
+
+          <div class="panel-section-title">
+            <span>Extracción</span>
+            <span class="panel-section-meta">Engine</span>
+          </div>
+
+          <div class="field span-2">
+            <label for="preset">Profundidad de análisis</label>
+            <select id="preset" name="preset">
+              <option value="fast">Fast (30s) — Stack, colores, secciones</option>
+              <option value="standard">Standard (2min) — + Screenshots, motion</option>
+              <option value="surgical" selected>Surgical (5min) — + Assets, hovers, WebGL</option>
+            </select>
+          </div>
+
+          <label class="field-checkbox span-2">
+            <input type="checkbox" name="ignoreRobots" value="true" />
+            <span>Ignorar robots.txt (solo con permiso del owner)</span>
+          </label>
+
+          <button class="run-button" type="submit">
+            <div class="spinner"></div>
+            <span>Extraer y generar prompt</span>
+          </button>
+        </form>
+
+        <aside class="panel telemetry">
+          <div>
+            <span class="metric-label">Stack</span>
+            <strong id="techCount">0</strong>
+          </div>
+          <div>
+            <span class="metric-label">Fidelity</span>
+            <strong id="fidelityScore">-</strong>
+          </div>
+          <div>
+            <span class="metric-label">Prompt</span>
+            <strong id="promptSize">0kb</strong>
+          </div>
+        </aside>
+
+        <section class="panel output-panel">
+          <div class="output-head">
+            <div class="tab-bar" id="tabBar">
+              <button class="tab active" data-tab="prompt">Prompt</button>
+              <button class="tab" data-tab="sections">Sections</button>
+              <button class="tab" data-tab="styles">Styles</button>
+              <button class="tab" data-tab="motion">Motion</button>
+              <button class="tab" data-tab="assets">Assets</button>
+              <button class="tab" data-tab="risks">Risks</button>
+              <button class="tab" data-tab="screenshots">Screenshots</button>
+              <button class="tab" data-tab="history">History</button>
+            </div>
+            <div class="output-actions">
+              <button class="copy-button" id="copyButton" type="button">Copy</button>
+              <button class="copy-button" id="downloadPrompt" type="button">Download</button>
+              <button class="copy-button" id="downloadEvidence" type="button">Evidence</button>
+              <button class="copy-button" id="exportToAIStudio" type="button" title="Export to Google AI Studio">🚀 AI Studio</button>
+              <button class="copy-button" id="resetButton" type="button" title="Borra formulario y resultados para empezar de cero">⟲ Reset</button>
+            </div>
+          </div>
+          <div class="tab-content">
+            <pre id="outputPrompt" class="tab-pane active">El resultado aparecerá aquí.</pre>
+            <pre id="outputSections" class="tab-pane">Section map will appear here.</pre>
+            <pre id="outputStyles" class="tab-pane">CSS styles will appear here.</pre>
+            <pre id="outputMotion" class="tab-pane">Motion recipes will appear here.</pre>
+            <pre id="outputAssets" class="tab-pane">Asset manifest will appear here.</pre>
+            <pre id="outputRisks" class="tab-pane">Risk findings will appear here.</pre>
+            <div id="outputScreenshots" class="tab-pane">
+              <div class="screenshot-grid" id="screenshotGrid">
+                <p style="color:var(--text-muted); grid-column:1/-1;">No screenshots captured yet.</p>
+              </div>
+            </div>
+            <div id="outputHistory" class="tab-pane">
+              <div class="run-list" id="runList">
+                <p style="color:var(--text-muted);">No runs in history.</p>
+              </div>
+            </div>
+          </div>
+          <div id="artifactPath" class="artifact-path"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

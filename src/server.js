@@ -1,0 +1,394 @@
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { basename, extname, join, normalize, relative as pathRelative, isAbsolute } from "node:path";
+import { fileURLToPath } from "node:url";
+import { runOrchestrator } from "./orchestrator.js";
+import { loadLocalEnv } from "./support/env.js";
+import { validatePublicHttpUrl } from "./support/urlSafety.js";
+import { RUNS_DIR } from "./support/artifacts.js";
+import { Semaphore } from "./support/jobQueue.js";
+import { ensureDependencies } from "./support/autoInstall.js";
+
+await ensureDependencies();
+
+loadLocalEnv();
+
+const PORT = Number(process.env.PORT || 4173);
+const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 2);
+const MAX_QUEUE = Number(process.env.MAX_QUEUE || 10);
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "false").toLowerCase() === "true";
+const AUTH_TOKEN = process.env.AUTH_TOKEN || "";
+const extractionSemaphore = new Semaphore(MAX_CONCURRENT);
+const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
+
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml"
+};
+
+// Rate limiter map (ip -> { count, resetAt })
+const rateLimiter = new Map();
+
+function getClientIp(request) {
+  if (TRUST_PROXY) {
+    const xff = request.headers["x-forwarded-for"];
+    if (xff) {
+      const ips = String(xff).split(",").map(s => s.trim());
+      return ips[ips.length - 1];
+    }
+  }
+  return request.socket.remoteAddress || "127.0.0.1";
+}
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  for (const [key, value] of rateLimiter) {
+    if (now > value.resetAt) rateLimiter.delete(key);
+  }
+  const entry = rateLimiter.get(ip) || { count: 0, resetAt: now + 60_000 };
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + 60_000;
+  }
+  if (entry.count >= 5) {
+    throw new Error("Rate limit: máximo 5 extracciones por minuto.");
+  }
+  entry.count++;
+  rateLimiter.set(ip, entry);
+}
+
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; script-src 'self'",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+  "X-Frame-Options": "DENY",
+};
+
+function setSecurityHeaders(response) {
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    response.setHeader(key, value);
+  }
+}
+
+const server = createServer(async (request, response) => {
+  try {
+    setSecurityHeaders(response);
+
+    if (AUTH_TOKEN) {
+      const auth = request.headers["authorization"];
+      if (auth !== `Bearer ${AUTH_TOKEN}`) {
+        sendJson(response, 401, { error: "unauthorized" });
+        return;
+      }
+    }
+
+    const urlObj = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
+    const pathname = urlObj.pathname;
+
+    const clientIp = getClientIp(request);
+
+    // El rate limit protege la extracción (operación cara, POST). Las rutas de
+    // solo lectura (/api/runs, /api/screenshots) pueden generar ráfagas legítimas
+    // —p. ej. la galería de screenshots carga una <img> por viewport/scroll— y no
+    // deben agotar el cupo de 5/min, o las imágenes renderizarian como rotas (429).
+    if (pathname.startsWith("/api/") && request.method === "POST") {
+      try {
+        checkRateLimit(clientIp);
+      } catch (rateError) {
+        sendJson(response, 429, { error: rateError.message });
+        return;
+      }
+    }
+
+    if (request.method === "POST" && pathname === "/api/extract") {
+      await handleExtract(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/shutdown") {
+      handleShutdown(response);
+      return;
+    }
+
+    if (request.method === "GET") {
+      if (pathname === "/api/runs") {
+        await handleListRuns(request, response);
+        return;
+      }
+      if (pathname === "/api/screenshots") {
+        await handleServeScreenshot(request, response);
+        return;
+      }
+      await serveStatic(request, response);
+      return;
+    }
+
+    sendJson(response, 405, { error: "Method not allowed" });
+  } catch (error) {
+    if (error.status) {
+      sendJson(response, error.status, { error: error.message });
+    } else {
+      sendJson(response, 500, { error: error.message });
+    }
+  }
+});
+
+server.listen(PORT, "127.0.0.1", () => {
+  console.log(`Dashboard ready at http://127.0.0.1:${PORT}`);
+});
+
+/**
+ * Detiene el servidor de forma limpia. El listener vive solo en 127.0.0.1,
+ * así que este endpoint únicamente es alcanzable desde la propia máquina.
+ * Pensado para el botón "Stop server" del dashboard cuando node arranca
+ * oculto vía VBS y no hay ventana de terminal que cerrar.
+ */
+function handleShutdown(response) {
+  sendJson(response, 200, { ok: true });
+  // Da tiempo a que la respuesta se vacíe antes de cortar conexiones.
+  setImmediate(() => {
+    try { server.close(); } catch { /* ya cerrado */ }
+    process.exit(0);
+  });
+}
+
+async function handleExtract(request, response) {
+  const body = await readJsonBody(request);
+
+  if (!body.url || !body.niche) {
+    sendJson(response, 400, { error: "URL and niche are required." });
+    return;
+  }
+
+  let validatedUrl;
+  try {
+    validatedUrl = await validatePublicHttpUrl(body.url);
+  } catch (error) {
+    sendJson(response, 400, { error: error.message });
+    return;
+  }
+
+  if (extractionSemaphore.waiters.length >= MAX_QUEUE) {
+    sendJson(response, 429, { error: "Servidor ocupado. Inténtalo en unos minutos." });
+    return;
+  }
+
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+
+  const sendEvent = (event, data) => {
+    try {
+      const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+      response.write(payload);
+    } catch {
+      // Si falla el envío, el catch superior lo manejará
+    }
+  };
+
+  const onProgress = (info) => {
+    sendEvent("progress", info);
+  };
+
+  if (extractionSemaphore.active >= MAX_CONCURRENT) {
+    sendEvent("progress", { step: "queued", message: "En cola, esperando un slot de extracción..." });
+  }
+
+  const heartbeat = setInterval(() => {
+    try {
+      response.write(`: keep-alive ${Date.now()}\n\n`);
+    } catch {
+    }
+  }, 10_000);
+  if (typeof heartbeat.unref === "function") heartbeat.unref();
+
+  try {
+    const masterPrompt = await extractionSemaphore.run(() => runOrchestrator({
+      url: validatedUrl,
+      niche: body.niche,
+      headless: true,
+      timeoutMs: 120000,
+      preset: body.preset || "standard",
+      force: body.force,
+      ignoreRobots: body.ignoreRobots === true,
+      clientBrief: body.clientBrief || null,
+      onProgress
+    }));
+
+    response.socket?.setNoDelay(true);
+    response.socket?.setKeepAlive(true);
+
+    const promptLen = masterPrompt.prompt ? masterPrompt.prompt.length : 0;
+    const payload = JSON.stringify({
+      prompt: promptLen > 1_000_000 ? masterPrompt.prompt.slice(0, 5000) + "\n...[truncated - read from artifactPath]" : masterPrompt.prompt,
+      artifactPath: masterPrompt.artifactPath,
+      truncated: promptLen > 1_000_000,
+      evidence: trimEvidenceForSSE(masterPrompt.evidence),
+      fidelityScore: masterPrompt.fidelityScore,
+      generatedAt: new Date().toISOString()
+    });
+
+    const ok = response.write(`event: result\ndata: ${payload}\n\n`);
+    if (!ok) {
+      await new Promise(resolve => response.once("drain", resolve));
+    }
+  } catch (error) {
+    try {
+      response.write(`event: error\ndata: ${JSON.stringify({ message: error.message })}\n\n`);
+    } catch {
+      // Intento mínimo de notificar error
+    }
+  } finally {
+    clearInterval(heartbeat);
+    response.end();
+  }
+}
+
+async function serveStatic(request, response) {
+  const url = new URL(request.url, `http://127.0.0.1:${PORT}`);
+  const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
+  const safePath = normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
+  const filePath = join(PUBLIC_DIR, safePath);
+
+  // Robust path traversal check using path.relative
+  const relativePath = pathRelative(PUBLIC_DIR, filePath);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    response.writeHead(403);
+    response.end("Forbidden");
+    return;
+  }
+
+  try {
+    const file = await readFile(filePath);
+    response.writeHead(200, {
+      "Content-Type": mimeTypes[extname(filePath)] || "application/octet-stream"
+    });
+    response.end(file);
+  } catch {
+    response.writeHead(404);
+    response.end("Not found");
+  }
+}
+
+function readJsonBody(request) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    request.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 1_000_000) {
+        request.destroy();
+        const err = new Error("Payload too large.");
+        err.status = 413;
+        reject(err);
+      }
+    });
+    request.on("end", () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        reject(new Error("Invalid JSON payload."));
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
+function sendJson(response, statusCode, payload) {
+  response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(payload));
+}
+
+function trimEvidenceForSSE(evidence) {
+  if (!evidence) return evidence;
+  const trimmed = { ...evidence };
+  if (trimmed.inspection) {
+    trimmed.inspection = { ...trimmed.inspection };
+    delete trimmed.inspection.html;
+    delete trimmed.inspection.sectionStructure;
+    delete trimmed.inspection.scripts;
+    if (trimmed.inspection.styles && Array.isArray(trimmed.inspection.styles.styleRules)) {
+      trimmed.inspection.styles = { ...trimmed.inspection.styles, styleRules: trimmed.inspection.styles.styleRules.slice(0, 100) };
+    }
+  }
+  return trimmed;
+}
+
+async function handleListRuns(request, response) {
+  try {
+    const indexPath = join(RUNS_DIR, "index.json");
+    let runs = [];
+    try {
+      const data = await readFile(indexPath, "utf8");
+      runs = JSON.parse(data);
+    } catch {
+      // index.json no existe o está corrupto, devolver vacío
+    }
+    sendJson(response, 200, runs);
+  } catch (error) {
+    sendJson(response, 500, { error: error.message });
+  }
+}
+
+async function handleServeScreenshot(request, response) {
+  try {
+    const urlObj = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
+    const run = urlObj.searchParams.get("run");
+    const file = urlObj.searchParams.get("file");
+
+    if (!run || !file) {
+      sendJson(response, 400, { error: "run and file parameters are required." });
+      return;
+    }
+
+    // Prevent path traversal outside screenshots/ and enforce .png extension
+    const safe = isSafeScreenshotPath(run, file);
+    if (!safe.allowed) {
+      response.writeHead(403);
+      response.end("Forbidden");
+      return;
+    }
+
+    const img = await readFile(safe.filePath);
+    response.writeHead(200, { "Content-Type": "image/png" });
+    response.end(img);
+  } catch (error) {
+    response.writeHead(404);
+    response.end("Not found");
+  }
+}
+
+/**
+ * Validates that a screenshot request stays within run/screenshots/ and has .png extension.
+ * Exported for testing.
+ */
+export function isSafeScreenshotPath(run, file) {
+  // Block path traversal components in the run identifier
+  if (run.includes("..") || run.includes("/") || run.includes("\\") || run === "." || run === "..") {
+    return { allowed: false };
+  }
+  // Block path traversal components in the filename
+  if (file.includes("..") || file.includes("/") || file.includes("\\")) {
+    return { allowed: false };
+  }
+  // Only allow .png extension
+  if (extname(file).toLowerCase() !== ".png") {
+    return { allowed: false };
+  }
+  // Build the expected path and verify it stays within RUNS_DIR
+  const filePath = join(RUNS_DIR, run, "screenshots", file);
+  const relativePath = pathRelative(RUNS_DIR, filePath);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    return { allowed: false };
+  }
+  // Verify the resolved path is inside run/screenshots/
+  if (!relativePath.startsWith(join(run, "screenshots"))) {
+    return { allowed: false };
+  }
+  return { allowed: true, filePath };
+}
