@@ -15,6 +15,7 @@ import { extractSectionStructure } from "./structureExtractor.js";
 import { extractJsTokens, mergeJsTokens } from "./jsTokenExtractor.js";
 import { isHostPublic } from "../support/urlSafety.js";
 import { captureIntroTimeline, INTRO_INIT_SCRIPT } from "./introCapture.js";
+import { log } from "../support/logger.js";
 
 const TECHNOLOGY_SIGNATURES = [
   { name: "GSAP", tests: ["gsap", "ScrollTrigger"] },
@@ -97,7 +98,7 @@ async function preparePageForExtraction(page, onProgress, preset = "standard") {
 export async function inspectUrl({ url, headless = true, timeoutMs = 30000, preset = "standard", screenshotsPath, onProgress, browser: externalBrowser }) {
   const { chromium } = await import("playwright");
   let ownBrowser = false;
-  const browser = externalBrowser || (ownBrowser = true, await chromium.launch({ headless }));
+  const browser = externalBrowser || (ownBrowser = true, await chromium.launch({ headless, args: ["--disable-dev-shm-usage"] }));
 
   try {
     const page = await browser.newPage({
@@ -119,7 +120,8 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
             const target = new URL(location, reqUrl);
             if (!(await isHostPublic(target.hostname))) {
               await page.context().close();
-              throw new Error(`SSRF blocked: redirect to private host ${target.hostname}`);
+              log("warn", "ssrf", "Redirect blocked", { hostname: target.hostname });
+              return;
             }
           }
         }
@@ -130,7 +132,7 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
           earlyNetworkAssets.push({ url: reqUrl, type, contentType, size: parseInt(response.headers()["content-length"] || "0"), status });
         }
       } catch (e) {
-        if (e.message && e.message.includes("SSRF blocked")) throw e;
+        log("warn", "ssrf-response", "Response handler error", { error: e.message });
       }
     });
 
@@ -148,7 +150,12 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     await page.route("**/*", async (route) => {
       try {
         const reqUrl = new URL(route.request().url());
-        if (reqUrl.protocol === "http:" || reqUrl.protocol === "https:") {
+        if (reqUrl.protocol !== "http:" && reqUrl.protocol !== "https:") {
+          return route.abort("blockedbyclient");
+        }
+        // Solo validar DNS del documento principal (SSRF prevention)
+        // Sub-recursos (CSS, imagenes, fuentes, scripts) se permiten sin DNS check
+        if (route.request().resourceType() === "document") {
           if (!(await isHostPublic(reqUrl.hostname))) {
             return route.abort("blockedbyclient");
           }
@@ -441,7 +448,7 @@ if (typeof onProgress === 'function') {
       result.performanceMetrics = { LCP: 0, FCP: 0, error: cdpErr.message };
     }
 
-    if (preset === "surgical" && result.assets) {
+    if (result.assets) {
       const assetPath = join(screenshotsPath, "..", "assets");
       try {
         result.downloadedAssets = await downloadLocalAssets(result.assets, assetPath);

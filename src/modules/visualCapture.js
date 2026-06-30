@@ -5,31 +5,18 @@ const THUMB_W = 96;
 const THUMB_H = 54;
 
 async function generateThumbnail(page) {
+  const oldViewport = page.viewportSize();
   try {
-    const dataUri = await page.evaluate(async ({ w, h }) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      await new Promise(r => setTimeout(r, 50));
-      const img = document.createElement("img");
-      img.crossOrigin = "anonymous";
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${window.innerWidth}" height="${window.innerHeight}"><foreignObject width="100%" height="100%"><body xmlns="http://www.w3.org/1999/xhtml" style="margin:0">${document.documentElement.outerHTML}</body></foreignObject></svg>`;
-      const blob = new Blob([svg], { type: "image/svg+xml" });
-      const url = URL.createObjectURL(blob);
-      return new Promise(resolve => {
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, w, h);
-          URL.revokeObjectURL(url);
-          resolve(canvas.toDataURL("image/jpeg", 0.6));
-        };
-        img.onerror = () => resolve(null);
-        img.src = url;
-      });
-    }, { w: THUMB_W, h: THUMB_H });
-    return dataUri;
+    await page.setViewportSize({ width: THUMB_W * 2, height: THUMB_H * 2 });
+    await page.waitForTimeout(100);
+    const buf = await page.screenshot({ type: "jpeg", quality: 50, timeout: 5000 });
+    return buf.toString("base64");
   } catch {
     return null;
+  } finally {
+    if (oldViewport) {
+      try { await page.setViewportSize(oldViewport); } catch {}
+    }
   }
 }
 
@@ -141,7 +128,7 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
 
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(1000);
 
     const bodyHeight = await page.evaluate(() => (document.body || document.documentElement).scrollHeight);
     const viewportHeight = viewport.height;
