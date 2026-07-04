@@ -6,6 +6,7 @@ import { generateMasterPrompt } from "./modules/promptGenerator.js";
 import { createRunFolder, ensureRunFolders, saveEvidence, saveRunMeta, savePrompt, findRecentRun, pruneOldRuns, updateRunsIndex } from "./support/artifacts.js";
 import { computeVisualRhythm } from "./modules/visualDiff.js";
 import { computeFidelityScore } from "./modules/fidelityScore.js";
+import { computeExtractionCompletenessScore } from "./modules/extractionCompletenessScore.js";
 import { classifyDesignLanguage } from "./modules/localVisionHeuristics.js";
 import { tryLocalLlm } from "./modules/localLlmAdapter.js";
 import { interpretEvidence as interpretWithLlm } from "./modules/llmInterpreter.js";
@@ -20,6 +21,9 @@ import { initBrowserPool, getBrowser } from "./support/browserPool.js";
 import { computeVisualSimilarity } from "./modules/visualSimilarity.js";
 import { generateFromIR } from "./modules/irCodegen.js";
 import { runVerificationLoop, classifySiteCategory } from "./modules/verificationLoop.js";
+import { analyzeScreenshotPixels } from "./modules/screenshotQuality.js";
+import { buildReferenceExperienceIR } from "./modules/referenceIrBuilder.js";
+import { computeRenderedSimilarity } from "./modules/renderedSimilarity.js";
 
 export async function runOrchestrator(config) {
   const pipelineContext = { timings: {}, data: {} };
@@ -29,13 +33,17 @@ export async function runOrchestrator(config) {
     { name: 'robotsCheck', fn: runRobotsCheck },
     { name: 'scraper', fn: runScraper },
     { name: 'analysis', fn: runAnalysis },
+    { name: 'buildReferenceIR', fn: runBuildReferenceIR },
     { name: 'pixelAndSpacing', fn: runPixelAndSpacing },
     { name: 'designAndFidelity', fn: runDesignAndFidelity },
     { name: 'llmInterpretation', fn: runLlmInterpretation },
     { name: 'saveArtifacts', fn: runSaveArtifacts },
     { name: 'packageContext', fn: runPackageContext },
-    { name: 'generatePrompt', fn: runGeneratePrompt },
     { name: 'generateSite', fn: runGenerateSite },
+    { name: 'renderGeneratedSite', fn: runRenderGeneratedSite },
+    { name: 'measureRenderedSimilarity', fn: runMeasureRenderedSimilarity },
+    { name: 'repairWeakSections', fn: runRepairWeakSections },
+    { name: 'generatePrompt', fn: runGeneratePrompt },
     { name: 'verifyFidelity', fn: runVerifyFidelity },
   ];
 
@@ -59,6 +67,7 @@ export async function runOrchestrator(config) {
     prompt: pipelineContext.data.generatePrompt,
     artifactPath: pipelineContext.data.saveArtifacts?.artifactPath,
     evidence: pipelineContext.data.saveArtifacts?.evidence,
+    referenceExperienceIR: pipelineContext.data.saveArtifacts?.evidence?.referenceExperienceIR,
     fidelityScore: pipelineContext.data.saveArtifacts?.evidence?.fidelityScore
   };
 }
@@ -169,6 +178,17 @@ async function runAnalysis(ctx, config) {
   const visualRhythm = await computeVisualRhythm(inspection.visualEvidence);
   evidence.visualRhythm = visualRhythm;
 
+  const visualEvidence = inspection.visualEvidence || [];
+  const flatCount = visualEvidence.filter(v => {
+    const quality = v.screenshotQuality || {};
+    return !analyzeScreenshotPixels(quality).valid;
+  }).length;
+  if (visualEvidence.length > 0 && flatCount / visualEvidence.length > 0.5) {
+    evidence.visualEvidenceStatus = "invalid";
+    evidence.validationWarnings = evidence.validationWarnings || [];
+    evidence.validationWarnings.push("Visual screenshots appear blank or flat.");
+  }
+
   ctx.data.evidence = evidence;
   ctx.data.motionAnalysis = motionAnalysis;
   ctx.data.conversionPlan = conversionPlan;
@@ -237,7 +257,8 @@ async function runDesignAndFidelity(ctx, config) {
   }
 
   evidence.designLanguage = designLanguage;
-  evidence.fidelityScore = fidelityScore;
+  evidence.extractionCompletenessScore = fidelityScore;
+  evidence.fidelityScore = null;
   evidence.fidelityLevel = effectivePreset === "surgical" ? "surgical" : effectivePreset === "fast" ? "compact" : "standard";
 
   // Categorización automática del sitio
@@ -348,6 +369,45 @@ async function runGeneratePrompt(ctx, config) {
   return masterPrompt;
 }
 
+async function runBuildReferenceIR(ctx, config) {
+  const { evidence } = ctx.data;
+  evidence.referenceExperienceIR = buildReferenceExperienceIR(evidence);
+  return { referenceExperienceIR: evidence.referenceExperienceIR };
+}
+
+async function runRenderGeneratedSite(ctx, config) {
+  return {};
+}
+
+async function runMeasureRenderedSimilarity(ctx, config) {
+  const { evidence } = ctx.data;
+  if (!evidence.referenceExperienceIR || !ctx.data.generatedSite) return {};
+  try {
+    const generatedIR = buildReferenceExperienceIR({
+      url: evidence.url,
+      niche: evidence.niche,
+      inspection: ctx.data.generatedSite
+    });
+    const similarity = computeRenderedSimilarity(evidence.referenceExperienceIR, generatedIR);
+    evidence.renderedSimilarity = similarity;
+  } catch (err) {
+    log("error", "renderedSimilarity", "Fallo comparación renderizada", { error: err.message });
+  }
+  return {};
+}
+
+async function runRepairWeakSections(ctx, config) {
+  const { evidence } = ctx.data;
+  if (!evidence.renderedSimilarity || evidence.renderedSimilarity.overall >= 80) return {};
+  evidence.repairAttempted = true;
+  evidence.repairPlan = evidence.renderedSimilarity.weakSections.map(s => ({
+    sectionId: s.sectionId,
+    reason: s.reason,
+    action: "REGENERATE_SECTION_FROM_IR"
+  }));
+  return {};
+}
+
 async function runGenerateSite(ctx, config) {
   const { evidence, paths } = ctx.data;
   if (!config.generate) return {};
@@ -383,16 +443,24 @@ async function runVerifyFidelity(ctx, config) {
       });
     }
 
-    // Loop de verificación (no bloqueante, solo informativo)
+    // Loop de verificación usando IR comparado
     if (config.verifyLoop !== false) {
-      const loopResult = await runVerificationLoop(evidence, {
-        onProgress: config.onProgress,
-      });
-      evidence.verificationLoop = loopResult;
-      log("info", "verify", "Loop de verificación: " + (loopResult.success ? "PASÓ" : "NO PASÓ"), {
-        iterations: loopResult.iterations,
-        finalScore: loopResult.finalScore,
-      });
+      const referenceIR = evidence.referenceExperienceIR;
+      const generatedIR = ctx.data.generatedSite
+        ? buildReferenceExperienceIR({
+            url: evidence.url,
+            niche: evidence.niche,
+            inspection: ctx.data.generatedSite
+          })
+        : null;
+      if (referenceIR && generatedIR) {
+        const loopResult = await runVerificationLoop({ referenceIR, generatedIR, threshold: 80 });
+        evidence.verificationLoop = loopResult;
+        log("info", "verify", "Loop de verificación: " + (loopResult.success ? "PASÓ" : "NO PASÓ"), {
+          score: loopResult.similarity?.overall,
+          repairs: (loopResult.repairs || []).length,
+        });
+      }
     }
   } catch (err) {
     log("error", "verify", "Fallo cálculo de similitud", { error: err.message });
