@@ -181,6 +181,7 @@ async function runAnalysis(ctx, config) {
   const visualEvidence = inspection.visualEvidence || [];
   const flatCount = visualEvidence.filter(v => {
     const quality = v.screenshotQuality || {};
+    if (!quality.colors || quality.colors.length === 0) return false;
     return !analyzeScreenshotPixels(quality).valid;
   }).length;
   if (visualEvidence.length > 0 && flatCount / visualEvidence.length > 0.5) {
@@ -258,7 +259,7 @@ async function runDesignAndFidelity(ctx, config) {
 
   evidence.designLanguage = designLanguage;
   evidence.extractionCompletenessScore = fidelityScore;
-  evidence.fidelityScore = null;
+  evidence.fidelityScore = fidelityScore;
   evidence.fidelityLevel = effectivePreset === "surgical" ? "surgical" : effectivePreset === "fast" ? "compact" : "standard";
 
   // Categorización automática del sitio

@@ -337,8 +337,7 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     result.overlayActions = overlayActions;
 
     onProgress?.({ step: "sections", message: "Mapeando secciones..." });
-    const rawSections = await segmentSections(page);
-    const sections = rawSections.map(inferSectionRole);
+    const sections = await mapSections(page);
     result.sections = sections;
 
     if (screenshotsPath) {
@@ -654,57 +653,4 @@ function inferExtractionRisks(pageData) {
   return risks;
 }
 
-const ROLE_SIGNALS = {
-  nav: ["nav", "navigation", "menu", "navbar"],
-  hero: ["hero", "banner", "intro", "header"],
-  proof: ["proof", "trust", "testimonial", "clients", "logo", "metrics", "stats", "social proof"],
-  showcase: ["showcase", "portfolio", "work", "projects", "gallery", "case study"],
-  service: ["service", "feature", "offer", "solution", "capability", "what we do"],
-  pricing: ["pricing", "plans", "subscription", "tier", "price"],
-  team: ["team", "about", "founder", "people", "culture"],
-  contact: ["contact", "get in touch", "book", "schedule", "reserve", "form"],
-  footer: ["footer", "copyright", "legal", "privacy"]
-};
 
-function inferSectionRole(section, index, allSections) {
-  const totalSections = allSections.length;
-  const tag = section.tag || "section";
-  const headingText = (section.headings || []).join(" ").toLowerCase();
-  const text = (section.text || "").toLowerCase();
-  const isLast = index === totalSections - 1;
-
-  let bestRole = "section";
-  let bestScore = 0.3;
-  const reasons = [];
-
-  if (tag === "footer" && isLast) { bestRole = "footer"; bestScore = 0.9; reasons.push("footer tag"); }
-  else if (tag === "nav" || tag === "header") { bestRole = "nav"; bestScore = 0.85; reasons.push(`${tag} element`); }
-  else if (index === 0) { bestRole = "hero"; bestScore = 0.7; reasons.push("first section"); }
-  else if (isLast) { bestRole = "footer"; bestScore = 0.5; reasons.push("last section"); }
-
-  for (const [role, signals] of Object.entries(ROLE_SIGNALS)) {
-    let score = 0;
-    const matchReasons = [];
-    for (const signal of signals) {
-      if (headingText.includes(signal)) { score += 0.3; matchReasons.push(`heading: "${signal}"`); }
-      if (text.includes(signal)) { score += 0.15; matchReasons.push(`text: "${signal}"`); }
-    }
-    if (tag === "footer" && role === "footer") { score += 0.2; }
-    score += (totalSections - index) / totalSections * 0.1;
-    if (score > bestScore) { bestScore = score; bestRole = role; reasons.length = 0; reasons.push(...matchReasons); }
-  }
-
-  if (reasons.length === 0) reasons.push("inferred from position");
-
-  const confidence = Math.min(0.95, bestScore);
-
-  return {
-    ...section,
-    role: bestRole,
-    confidence,
-    reasons,
-    isFullViewport: (section.height || 0) >= 700,
-    ctaText: [],
-    textHierarchy: (section.headings || []).map(h => ({ level: "H2", text: h }))
-  };
-}

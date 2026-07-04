@@ -89,6 +89,17 @@ function buildHTMLFromIR(sections, structure) {
     const struct = structure[i] || {};
     const role = section.role || "section";
     const children = struct.keyChildren || [];
+
+    if (struct.htmlSnippet && struct.htmlSnippet.length > 50) {
+      const snippet = cleanHTMLSnippet(struct.htmlSnippet);
+      return `
+<section class="section-${role}">
+${snippet
+  .replace(/^<section[^>]*>/i, "")
+  .replace(/<\/section>\s*$/i, "")}
+</section>`;
+    }
+
     return `
 <section class="section section-${i} section-${role}">
   <div class="section-inner">
@@ -161,15 +172,14 @@ video { max-width: 100%; display: block; }`);
     }
   }
 
-  // Layout tokens from section roles (no literal CSS copy)
-  if (structure.length > 0) {
-    parts.push(`\n/* Section layout tokens */`);
-    for (let i = 0; i < structure.length; i++) {
-      const role = sections[i]?.role || `section-${i}`;
-      parts.push(`
-.section-${role} {
-  padding: var(--spacing-unit) 0;
-}`);
+  // Style rules originales (limitado a 200 reglas)
+  if (styles.styleRules && styles.styleRules.length > 0) {
+    parts.push(`\n/* Reglas CSS originales */`);
+    const seen = new Set();
+    for (const rule of styles.styleRules.slice(0, 200)) {
+      if (seen.has(rule.css)) continue;
+      seen.add(rule.css);
+      parts.push(`\n${rule.css}`);
     }
   }
 
