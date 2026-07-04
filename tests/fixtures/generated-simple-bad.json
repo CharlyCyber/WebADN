@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "url": "https://example.com",
+  "niche": "test",
+  "generatedAt": "2026-07-04T00:00:00.000Z",
+  "sections": [
+    {
+      "id": "section-0",
+      "index": 0,
+      "role": "footer",
+      "tag": "footer",
+      "height": 200,
+      "isFullViewport": false,
+      "layout": {},
+      "background": { "color": "#ff0000" },
+      "typography": [],
+      "children": [],
+      "motionRefs": [],
+      "sourceConfidence": 0.5
+    }
+  ],
+  "globalTokens": {},
+  "responsive": {},
+  "motion": [],
+  "interactions": [],
+  "assets": [],
+  "legalPolicy": { "copyText": false, "copyAssets": false, "copyClassNames": false, "copyCssVerbatim": false }
+}

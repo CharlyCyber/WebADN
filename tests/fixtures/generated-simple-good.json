@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "url": "https://example.com",
+  "niche": "test",
+  "generatedAt": "2026-07-04T00:00:00.000Z",
+  "sections": [
+    {
+      "id": "section-0",
+      "index": 0,
+      "role": "hero",
+      "tag": "section",
+      "height": 880,
+      "isFullViewport": true,
+      "layout": { "display": "flex", "alignItems": "center", "justifyContent": "center" },
+      "background": { "color": "#000000" },
+      "typography": [{ "tag": "h1", "fontSize": "3rem", "fontWeight": "700" }],
+      "children": [{ "tag": "h1", "role": "heading", "textKind": "replaceable" }],
+      "motionRefs": [],
+      "sourceConfidence": 0.9
+    },
+    {
+      "id": "section-1",
+      "index": 1,
+      "role": "showcase",
+      "tag": "section",
+      "height": 580,
+      "isFullViewport": false,
+      "layout": { "display": "grid" },
+      "background": { "color": "#ffffff" },
+      "typography": [{ "tag": "h2", "fontSize": "1.8rem", "fontWeight": "600" }],
+      "children": [{ "tag": "h2", "role": "heading", "textKind": "replaceable" }],
+      "motionRefs": [],
+      "sourceConfidence": 0.8
+    },
+    {
+      "id": "section-2",
+      "index": 2,
+      "role": "footer",
+      "tag": "footer",
+      "height": 300,
+      "isFullViewport": false,
+      "layout": {},
+      "background": { "color": "#f5f5f5" },
+      "typography": [],
+      "children": [],
+      "motionRefs": [],
+      "sourceConfidence": 0.95
+    }
+  ],
+  "globalTokens": {},
+  "responsive": {},
+  "motion": [],
+  "interactions": [],
+  "assets": [],
+  "legalPolicy": { "copyText": false, "copyAssets": false, "copyClassNames": false, "copyCssVerbatim": false }
+}
