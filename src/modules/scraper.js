@@ -1,4 +1,5 @@
 import { captureViewportMatrix } from "./visualCapture.js";
+import { segmentSections } from "./sectionSegmenter.js";
 import { mapSections } from "./sectionMapper.js";
 import { extractAssets, classifyAssetType } from "./assetExtractor.js";
 import { analyzeCssFeatures } from "./cssAnalyzer.js";
@@ -335,10 +336,11 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     };
     result.overlayActions = overlayActions;
 
+    onProgress?.({ step: "sections", message: "Mapeando secciones..." });
+    const sections = await segmentSections(page);
+    result.sections = sections;
+
     if (screenshotsPath) {
-      onProgress?.({ step: "sections", message: "Mapeando secciones..." });
-      const sections = await mapSections(page);
-      result.sections = sections;
 
       onProgress?.({ step: "assets", message: "Extrayendo assets..." });
       const assets = await extractAssets(page, earlyNetworkAssets);
