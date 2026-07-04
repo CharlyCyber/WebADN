@@ -206,6 +206,12 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
         };
       });
 
+      const quality = {
+        colors: [],
+        dominantRatio: 1,
+        note: "TODO: sample screenshot buffer via png parser"
+      };
+
       results.push({
         viewport: viewport.name,
         scrollPercent,
@@ -213,6 +219,7 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
         screenshotPath,
         screenshotName,
         thumbnail,
+        screenshotQuality: quality,
         visibleText: domSnapshot.visibleText,
         visibleElements: domSnapshot.visibleElements,
         dominantLayoutSignals: domSnapshot.dominantLayoutSignals,
