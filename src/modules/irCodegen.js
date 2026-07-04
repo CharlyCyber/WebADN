@@ -67,70 +67,14 @@ function buildHTML(sections, structure, niche, palette) {
 
   if (!sections.length || !sections.some(s => s.role)) {
     parts.push(`
-  <section class="hero" style="background:${palette.background};color:${palette.text};">
+  <section class="hero">
     <div class="container">
       <h1>${escapeHTML(niche)}</h1>
       <p>Premium ${escapeHTML(niche)} solutions.</p>
     </div>
   </section>`);
   } else {
-    for (let i = 0; i < sections.length; i++) {
-      const s = sections[i];
-      const struct = structure[i] || {};
-      const role = s.role || "section";
-      const cls = struct.classList || s.tag || "section";
-      const bgColor = struct.background?.color || s.background || palette.background;
-      const isFull = s.isFullViewport;
-
-      if (struct.htmlSnippet && struct.htmlSnippet.length > 50) {
-        // Usar htmlSnippet real extraído del sitio original
-        // Preserva jerarquía, wrappers, clases, inline SVGs, data-atributos
-        const snippet = cleanHTMLSnippet(struct.htmlSnippet, niche);
-        parts.push(`
-  <section class="${role} ${cls}"${isFull ? ' data-fullviewport="true"' : ''}>`);
-        parts.push(snippet
-          .replace(/^<section[^>]*>/i, "")
-          .replace(/<\/section>\s*$/i, ""));
-        parts.push(`  </section>`);
-      } else {
-        // Fallback: reconstruir desde keyChildren
-        parts.push(`
-  <section class="${role} ${cls}"${isFull ? ' data-fullviewport="true"' : ''}${bgColor !== palette.background ? ` style="background:${bgColor};"` : ""}>`);
-        parts.push(`    <div class="container">`);
-
-        const children = struct.keyChildren || [];
-        for (const child of children) {
-          const tag = child.tag || "div";
-          const clsAttr = child.classList ? ` class="${child.classList}"` : "";
-          const text = child.textContent || "";
-          const src = child.src || "";
-
-          if (tag === "h1" || tag === "h2" || tag === "h3" || tag === "h4" || tag === "p") {
-            parts.push(`      <${tag}${clsAttr}>${escapeHTML(text.replace(niche, `{niche}`))}</${tag}>`);
-          } else if (tag === "img") {
-            parts.push(`      <img${clsAttr} src="${escapeHTML(src)}" alt="" loading="lazy" />`);
-          } else if (tag === "a" || tag === "button") {
-            parts.push(`      <${tag}${clsAttr} class="btn">${escapeHTML(text) || "Learn more"}</${tag}>`);
-          } else if (tag === "video") {
-            parts.push(`      <video${clsAttr} src="${escapeHTML(src)}" autoplay muted loop playsinline></video>`);
-          } else if (tag === "canvas" || tag === "svg") {
-            parts.push(`      <${tag}${clsAttr}></${tag}>`);
-          } else {
-            const textContent = text ? escapeHTML(text.replace(niche, `{niche}`)) : "";
-            parts.push(`      <${tag}${clsAttr}>${textContent}</${tag}>`);
-          }
-        }
-
-        if (!children.length) {
-          const hText = s.textHierarchy?.[0]?.text || role;
-          parts.push(`      <h2>${escapeHTML(hText.replace(niche, `{niche}`))}</h2>`);
-          parts.push(`      <p>Content for ${role} section.</p>`);
-        }
-
-        parts.push(`    </div>`);
-        parts.push(`  </section>`);
-      }
-    }
+    parts.push(buildHTMLFromIR(sections, structure));
   }
 
   parts.push(`
@@ -138,6 +82,38 @@ function buildHTML(sections, structure, niche, palette) {
 </html>`);
 
   return parts.join("\n");
+}
+
+function buildHTMLFromIR(sections, structure) {
+  return sections.map((section, i) => {
+    const struct = structure[i] || {};
+    const role = section.role || "section";
+    const children = struct.keyChildren || [];
+    return `
+<section class="section section-${i} section-${role}">
+  <div class="section-inner">
+    ${buildSectionChildren(role, children, i)}
+  </div>
+</section>`;
+  }).join("\n");
+}
+
+function buildSectionChildren(role, children, sectionIndex) {
+  if (!children.length) {
+    return `<h2 data-copy-slot="section-${sectionIndex}-heading"></h2>`;
+  }
+  return children.map((child, index) => {
+    if (child.role === "heading" || /^h[1-6]$/.test(child.tag)) {
+      return `<h${Math.min(parseInt(child.tag[1]) || 2, 6)} data-copy-slot="section-${sectionIndex}-heading-${index}"></h${Math.min(parseInt(child.tag[1]) || 2, 6)}>`;
+    }
+    if (child.role === "media" || child.tag === "img" || child.tag === "video") {
+      return `<div class="media-slot media-slot-${index}"></div>`;
+    }
+    if (child.role === "cta" || child.tag === "a" || child.tag === "button") {
+      return `<a class="button" href="#"></a>`;
+    }
+    return `<div class="layout-node layout-node-${index}"></div>`;
+  }).join("\n");
 }
 
 function buildCSS(sections, structure, styles, tokens, spacing, recipes, palette, fontStack) {
@@ -185,14 +161,15 @@ video { max-width: 100%; display: block; }`);
     }
   }
 
-  // Style rules originales (limitado a 200 reglas)
-  if (styles.styleRules && styles.styleRules.length > 0) {
-    parts.push(`\n/* Reglas CSS originales */`);
-    const seen = new Set();
-    for (const rule of styles.styleRules.slice(0, 200)) {
-      if (seen.has(rule.css)) continue;
-      seen.add(rule.css);
-      parts.push(`\n${rule.css}`);
+  // Layout tokens from section roles (no literal CSS copy)
+  if (structure.length > 0) {
+    parts.push(`\n/* Section layout tokens */`);
+    for (let i = 0; i < structure.length; i++) {
+      const role = sections[i]?.role || `section-${i}`;
+      parts.push(`
+.section-${role} {
+  padding: var(--spacing-unit) 0;
+}`);
     }
   }
 
