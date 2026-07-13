@@ -1,4 +1,5 @@
-﻿import { inspectUrl, sampleInspection } from "./modules/scraper.js";
+﻿// @ts-check
+import { inspectUrl, sampleInspection } from "./modules/scraper.js";
 import { buildKnowledgeMatrix } from "./modules/knowledgeMatrix.js";
 import { analyzeMotionReference } from "./modules/visionEngine.js";
 import { applyConversionStrategy } from "./modules/conversionBrain.js";

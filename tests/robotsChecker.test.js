@@ -9,7 +9,7 @@ Allow: /public
 User-agent: googlebot
 Disallow: /`;
 
-async function mockCheckRobots(url, ua = "surgical-extractor") {
+async function mockCheckRobots(url, ua = "webadn") {
   const { checkRobotsTxt } = await import("../src/support/robotsChecker.js");
   return checkRobotsTxt(url, ua);
 }

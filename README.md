@@ -1,8 +1,8 @@
-﻿# Surgical Web Extractor & Prompt Engine
+﻿# WebADN — Reverse Engineering & Context Compiler for AI Agents in IDEs
 
-Herramienta local Node.js para inspeccionar una URL de referencia y generar un Master Prompt técnico orientado a construir sitios web premium adaptados a un nicho comercial.
+WebADN extrae el contexto profundo y exacto de sitios web de referencia y genera un paquete de archivos estructurado (gran contexto) que será consumido por agentes de IA en IDEs (Cursor, Claude Code) para generar sitios perfectos y adaptados a un nicho.
 
-![Demo](https://media.giphy.com/media/v1.Y2lkYT1yZWNvcmQmYXNwZWN0PXJhdGlvJmN0PWc/giphy.gif)
+> ⚠️ **AVISO LEGAL:** WebADN extrae datos públicos y código para fines de análisis e ingeniería inversa. El usuario es el único responsable del uso legal de los sitios generados y del respeto a los derechos de autor de las referencias analizadas.
 
 ## Instalación
 
@@ -30,6 +30,23 @@ npm start -- --url "https://example.com" --niche "estudio premium de arquitectur
 --preset surgical
 ```
 
+### Cómo usar WebADN con Cursor / Claude Code
+```bash
+# 1. Extraer el contexto de un sitio de referencia
+npm start -- --url "https://example.com" --niche "tu-nicho"
+
+# 2. Copia la carpeta webadn-context-output/ a tu workspace del IDE
+#    (contiene manifest.md, design-tokens.json, structure-layout.json, .cursorrules)
+
+# 3. En Cursor: los archivos en webadn-context-output/ sirven como contexto
+#    directo para el agente. El archivo .cursorrules ajusta el comportamiento
+#    del agente automáticamente.
+
+# 4. En Claude Code: pega el contenido de manifest.md + design-tokens.json
+#    como contexto del proyecto, y usa structure-layout.json + animations-behavior.md
+#    como referencia durante la generación.
+```
+
 ### Otras opciones
 ```bash
 # Con video de referencia
@@ -48,15 +65,18 @@ npm start -- --url "https://example.com" --niche "test" --force
 npm start -- --url "https://example.com" --niche "test" --output json    # JSON estructurado
 npm start -- --url "https://example.com" --niche "test" --output html    # Viewer HTML visual
 npm start -- --url "https://example.com" --niche "test" --output markdown # Markdown (default)
+
+# Descargar assets binarios (imágenes y fuentes)
+npm start -- --url "https://example.com" --niche "test" --download-binaries
 ```
 
 ### Subcomandos
 ```bash
 # Listar ejecuciones anteriores
-surgical-extractor list
+webadn list
 
 # Comparar dos ejecuciones
-surgical-extractor compare <runFolder1> <runFolder2>
+webadn compare <runFolder1> <runFolder2>
 ```
 
 ## Dashboard web
@@ -93,37 +113,25 @@ Copia `.env.example` a `.env`. Variables disponibles:
 | `TRUST_PROXY` | `false` | Confiar en header X-Forwarded-For |
 | `AUTH_TOKEN` | — | Token Bearer para proteger el dashboard |
 
-## Salida
+## Salida Dual
 
-El CLI imprime un bloque Markdown con diagnóstico técnico completo del sitio de referencia:
+WebADN genera dos formas de output simultáneamente:
 
-1. Executive Design Diagnosis (con interpretación LLM si está disponible)
-2. Tech Stack & Design Tokens
-3. Arquitectura de Conversión & Pushback
-4. Ingeniería de Animaciones (GSAP, scroll, WebGL)
-5. Adaptación al Nicho
-6. Prompt Final Ejecutable
+### 1. Mega-Brief (`prompt.md`)
+El markdown completo con diagnóstico técnico, diseño, animaciones, CRO y prompt final ejecutable.
 
-### Ejemplo de output (Nicho: Estudio de Arquitectura Premium)
+### 2. Paquete de Contexto Estructurado (`webadn-context-output/`)
+Carpeta diseñada para consumo directo por agentes de IA en IDEs:
 
-````markdown
-# 1. Executive Design Diagnosis
+| Archivo | Propósito |
+|---------|-----------|
+| `manifest.md` | Resumen ejecutivo, diagnóstico de conversión, nicho objetivo |
+| `design-tokens.json` | Paleta exacta, escala de spacing, tipografías, sombras |
+| `structure-layout.json` | Grid, proporciones, orden de secciones |
+| `animations-behavior.md` | Keyframes, transiciones, lógica GSAP/Three.js |
+| `.cursorrules` | Reglas automáticas para Cursor IDE |
 
-**Design Language:** Minimalist Brutalism (confidence: 87%)
-**Signals:** Large typography, high contrast, grid-based layout, generous whitespace
-**Sections:** 8 major sections detected
-**Motion Complexity:** 12 scroll-linked animations
-**CSS Complexity:** 72/100
-**Visual Rhythm:** 8 estimated sections; sticky scenes present; 5 major transition(s)
-
-This reference uses a Minimalist Brutalism approach with heavy motion choreography and advanced CSS effects.
-
----
-
-# 2. Fidelity Target
-
-Recreate the exact visual weight and spatial rhythm of the reference site...
-````
+Para usar con Cursor: copia la carpeta `webadn-context-output/` a tu workspace. Para Claude Code: usa los archivos como contexto de proyecto.
 
 ## Qué puede y qué no puede detectar
 
@@ -143,10 +151,6 @@ Recreate the exact visual weight and spatial rhythm of the reference site...
 - **Animaciones trigger-by-user complejo**: Interacciones que requieren gestos específicos
 - **Shaders GLSL completos**: Solo detecta presencia y uniforms básicos
 - **Decisiones de diseño intencionales**: Por qué se eligió X color o Y layout (la IA puede inferir, pero no conoce el brief original)
-
-## Legal
-
-Esta herramienta extrae información técnica con Playwright para fines de estudio e inspiración. Respeta robots.txt de cada sitio. Los assets descargados son solo para uso local. No clones contenido protegido. Revisa los Términos de Servicio de cada web antes de extraer. El responsable legal del uso es el operador de la herramienta.
 
 ## Tests
 

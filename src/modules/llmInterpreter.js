@@ -77,7 +77,7 @@ export async function interpretEvidence({ evidence, niche, knowledgeMatrix, scre
       body = {
         model: "claude-sonnet-4-20250514",
         max_tokens: 3000,
-        system: "Eres un arquitecto senior de experiencias web premium especializado en ingeniería inversa de sitios Awwwards. Analizas capturas para extraer el ADN visual exacto.",
+        system: "Eres un arquitecto senior de experiencias web premium especializado en ingeniería inversa de sitios web de referencia. Analizas capturas para extraer el ADN visual exacto.",
         messages: [{ role: "user", content }]
       };
     }

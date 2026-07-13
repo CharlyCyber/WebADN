@@ -441,13 +441,15 @@ if (typeof onProgress === 'function') {
       
       result.performanceMetrics = {
         LCP: Math.round((findMetric("LargestContentfulPaint") || 0) * 100) / 100,
+        FID: Math.round((findMetric("FirstInputDelay") || 0) * 100) / 100,
+        CLS: Math.round((findMetric("CumulativeLayoutShift") || 0) * 10000) / 10000,
         FCP: Math.round((findMetric("FirstContentfulPaint") || 0) * 100) / 100,
-        JSHeapUsedSize: Math.round((findMetric("JSHeapUsedSize") || 0) / (1024 * 1024) * 100) / 100, // MB
+        JSHeapUsedSize: Math.round((findMetric("JSHeapUsedSize") || 0) / (1024 * 1024) * 100) / 100,
         LayoutCount: findMetric("LayoutCount") || 0,
         RecalcStyleCount: findMetric("RecalcStyleCount") || 0
       };
     } catch (cdpErr) {
-      result.performanceMetrics = { LCP: 0, FCP: 0, error: cdpErr.message };
+      result.performanceMetrics = { LCP: 0, FID: 0, CLS: 0, FCP: 0, error: cdpErr.message };
     }
 
     if (result.assets) {

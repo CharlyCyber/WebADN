@@ -1,3 +1,4 @@
+// @ts-check
 import { mkdir, writeFile } from "node:fs/promises";
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";

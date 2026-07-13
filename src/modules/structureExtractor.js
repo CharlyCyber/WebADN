@@ -24,9 +24,7 @@ const KEY_STYLE_PROPS = [
   "textShadow", "filter", "willChange"
 ];
 
-export async function extractSectionStructure(page, sections) {
-  if (!sections || !sections.length) return [];
-
+export async function extractSectionStructure(page, _sections) {
   const structure = await page.evaluate((opts) => {
     const textTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "a", "button", "span", "li", "label", "blockquote", "cite", "figcaption"]);
     const mediaTags = new Set(["img", "video", "canvas", "svg", "picture", "source", "iframe"]);

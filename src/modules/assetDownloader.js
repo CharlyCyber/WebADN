@@ -2,8 +2,16 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { isHostPublic } from "../support/urlSafety.js";
 
+const shouldDownloadBinaries = process.argv.includes('--download-binaries');
+
 export async function downloadLocalAssets(assets, downloadPath, onProgress) {
   const downloaded = { images: [], fonts: [] };
+
+  if (!shouldDownloadBinaries) {
+    return downloaded;
+  }
+
+  console.warn('⚠️ ADVERTENCIA: Descarga de binarios activada. Asegúrate de tener derechos sobre estos assets.');
 
   await mkdir(downloadPath, { recursive: true });
   const imageDir = join(downloadPath, "images");

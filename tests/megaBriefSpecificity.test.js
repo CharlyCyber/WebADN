@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { composeMegaBrief } from "../src/modules/briefComposer.js";
 
-function makeAwwwardsEvidence() {
+function makeTestEvidence() {
   return {
     url: "https://reference.example",
     niche: "Taller de motos premium",
@@ -124,7 +124,7 @@ function makeAwwwardsEvidence() {
 
 describe("composeMegaBrief specificity", () => {
   it("keeps concrete fidelity, GSAP, token, effect, and WebGL instructions", async () => {
-    const brief = await composeMegaBrief(makeAwwwardsEvidence(), "surgical");
+    const brief = await composeMegaBrief(makeTestEvidence(), "surgical");
 
     assert.match(brief, /80-90% resemblance/);
     assert.match(brief, /data-speed="0.8"/);

@@ -1,4 +1,4 @@
-﻿export async function checkRobotsTxt(url, userAgent = "surgical-extractor") {
+﻿export async function checkRobotsTxt(url, userAgent = "webadn") {
   const { origin, pathname } = new URL(url);
 
   try {

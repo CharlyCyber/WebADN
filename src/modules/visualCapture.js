@@ -10,7 +10,7 @@ async function generateThumbnail(page) {
     await page.setViewportSize({ width: THUMB_W * 2, height: THUMB_H * 2 });
     await page.waitForTimeout(100);
     const buf = await page.screenshot({ type: "jpeg", quality: 50, timeout: 5000 });
-    return buf.toString("base64");
+    return "data:image/jpeg;base64," + buf.toString("base64");
   } catch {
     return null;
   } finally {

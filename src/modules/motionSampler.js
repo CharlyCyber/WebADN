@@ -191,7 +191,7 @@ export function inferMotionRecipes(samples, candidates) {
 
     if (first.opacity !== last.opacity) {
       const fadeStart = points.find((p) => p.opacity < 0.95);
-      const fadeEnd = points.findLast((p) => p.opacity < 0.95);
+      const fadeEnd = [...points].reverse().find((p) => p.opacity < 0.95);
 
       if (fadeStart && fadeEnd) {
         recipes.push({

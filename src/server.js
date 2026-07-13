@@ -31,6 +31,13 @@ const mimeTypes = {
 
 // Rate limiter map (ip -> { count, resetAt })
 const rateLimiter = new Map();
+// Periodic cleanup instead of per-request scan to prevent O(n) per request
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimiter) {
+    if (now > entry.resetAt) rateLimiter.delete(key);
+  }
+}, 60_000).unref();
 
 function getClientIp(request) {
   if (TRUST_PROXY) {
@@ -45,19 +52,15 @@ function getClientIp(request) {
 
 function checkRateLimit(ip) {
   const now = Date.now();
-  for (const [key, value] of rateLimiter) {
-    if (now > value.resetAt) rateLimiter.delete(key);
-  }
-  const entry = rateLimiter.get(ip) || { count: 0, resetAt: now + 60_000 };
-  if (now > entry.resetAt) {
-    entry.count = 0;
-    entry.resetAt = now + 60_000;
+  const entry = rateLimiter.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimiter.set(ip, { count: 1, resetAt: now + 60_000 });
+    return;
   }
   if (entry.count >= 5) {
     throw new Error("Rate limit: máximo 5 extracciones por minuto.");
   }
   entry.count++;
-  rateLimiter.set(ip, entry);
 }
 
 const SECURITY_HEADERS = {
@@ -387,7 +390,10 @@ export function isSafeScreenshotPath(run, file) {
     return { allowed: false };
   }
   // Verify the resolved path is inside run/screenshots/
-  if (!relativePath.startsWith(join(run, "screenshots"))) {
+  // Normalize separators to / for cross-platform consistency (Windows uses \)
+  const normalizedRelative = relativePath.replace(/\\/g, "/");
+  const expectedPrefix = join(run, "screenshots").replace(/\\/g, "/");
+  if (!normalizedRelative.startsWith(expectedPrefix)) {
     return { allowed: false };
   }
   return { allowed: true, filePath };

@@ -23,8 +23,6 @@
 // no tiene acceso al scope de este módulo Node. No los saques a nivel de
 // módulo o reaparecerá el ReferenceError.
 
-const _BUG_REPRO_FLUID_FONT_RE = /font-size\s*:\s*([^;}]+)/i;
-
 /**
  * @param {import('playwright').Page} page
  */

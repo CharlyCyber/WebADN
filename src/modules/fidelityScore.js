@@ -57,7 +57,7 @@ export function computeFidelityScore(evidence) {
   scores.tokenConfidence = computeTokenConfidence(inspection);
   scores.motionConfidence = computeMotionConfidence(inspection);
   scores.interactionConfidence = computeInteractionConfidence(inspection);
-  scores.responsiveConfidence = computeResponsiveConfidence(inspection, visualRhythm);
+  scores.responsiveConfidence = computeResponsiveConfidence(inspection);
   scores.assetConfidence = computeAssetConfidence(inspection);
   scores.cssConfidence = computeCssConfidence(inspection);
   scores.webglConfidence = computeWebglConfidence(inspection);
@@ -143,7 +143,7 @@ function computeInteractionConfidence(inspection) {
   return 0.3;
 }
 
-function computeResponsiveConfidence(inspection, visualRhythm) {
+function computeResponsiveConfidence(inspection) {
   const viewportCount = new Set((inspection.visualEvidence || []).map((e) => e.viewport)).size;
 
   if (viewportCount >= 3) return 0.9;
