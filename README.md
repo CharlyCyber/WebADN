@@ -106,9 +106,12 @@ webadn mcp
 npm run web
 ```
 
-Abre `http://127.0.0.1:4173`. Desde la interfaz puedes extraer, copiar el prompt, descargar el
-kit en `.zip` y, en la pestaña **Medir build**, obtener el informe de fidelidad con capturas
-lado a lado. La interfaz es responsive.
+Abre `http://127.0.0.1:4173`. Son tres pasos: **Extraer** (URL + nicho), **Kit** (copiar el
+prompt o descargar el `.zip`) y **Medir** (nota de fidelidad, correcciones para pegar a tu IA y
+capturas lado a lado). La interfaz es responsive y guarda los últimos kits en el navegador.
+
+El dashboard usa una extracción ligera (solo la sonda de huella y el kit). El pipeline clásico
+completo, con el brief largo, sigue disponible desde el CLI.
 
 ### Usarlo desde el móvil
 
@@ -121,7 +124,8 @@ build", `localhost` significa el PC.
 
 ### Usarlo sin tu PC (Render)
 
-El repo incluye `Dockerfile` y `render.yaml`. Guía paso a paso, plan recomendado y límites en
+El repo incluye `Dockerfile` y `render.yaml` para el plan gratuito: New + → Blueprint → Apply.
+Guía y límites en
 [`docs/deploy-render.md`](docs/deploy-render.md).
 
 ### Seguridad del dashboard
@@ -157,6 +161,9 @@ Copia `.env.example` a `.env`. Variables disponibles:
 | `ALLOW_LOCAL_BUILDS` | `true` si HOST es local | Permitir medir builds en localhost/red privada |
 | `ALLOW_EMBED` | `false` | Quitar `X-Frame-Options: DENY` (dashboard dentro de un iframe) |
 | `RUNS_DIR` | `./runs` | Carpeta de extracciones (p. ej. un disco persistente) |
+| `LOW_MEMORY` | `false` | Chromium con menos procesos y sin GPU (instancias de 512 MB) |
+| `KEEP_AWAKE` | `true` en Render | El servicio visita su URL cada 10 min para no dormirse |
+| `DEFAULT_PRESET` | `standard` | Profundidad de medición del dashboard |
 | `CHROMIUM_PATH` | — | Usar un Chromium ya instalado en vez del de Playwright |
 
 ## Salida: el Build Kit

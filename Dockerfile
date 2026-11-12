@@ -7,7 +7,11 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     TRUST_PROXY=true \
     MAX_CONCURRENT=1 \
-    MAX_QUEUE=3
+    MAX_QUEUE=3 \
+    LOW_MEMORY=true \
+    KEEP_AWAKE=true \
+    MAX_RUNS=8 \
+    NODE_OPTIONS=--max-old-space-size=256
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
@@ -15,7 +19,7 @@ RUN npm ci --omit=dev --ignore-scripts
 COPY src ./src
 COPY public ./public
 
-# Las extracciones se guardan aquí; monta un disco en /data para conservarlas.
+# Las extracciones se guardan aquí (se pierden al reiniciar salvo que montes un disco en /data).
 ENV RUNS_DIR=/data/runs
 # Se ejecuta como root a propósito: los discos de Render se montan como root y
 # Chromium ya corre con --no-sandbox dentro del contenedor.
