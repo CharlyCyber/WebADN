@@ -54,3 +54,5 @@ __pycache__/
 .tox/
 .coverage
 nosetests.xml
+# Extraction artifacts
+runs/

@@ -121,6 +121,9 @@ function esc(s) {
 }
 
 let lastResponse = null;
+// El prompt a mostrar es el del kit (medido); el brief clásico queda como respaldo.
+const promptOf = (data) => data?.kit?.prompt || data?.prompt || "";
+const runNameOf = (data) => data?.kit?.run || (data?.artifactPath ? data.artifactPath.split(/[/\\]/).pop() : "");
 // Una animación por elemento: antes todas las métricas compartían un único ID
 // global, de modo que animate() cancelaba la animación de otra métrica al
 // arrancar la suya. settleMetrics() encadenaba 3 animate() y la animación de
@@ -386,7 +389,7 @@ async function loadHistory() {
           <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">${esc(run.technologies.join(", "))}</span>
         </div>
         <div style="display:flex; gap:12px; align-items:center;">
-          <span style="background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-weight: 500; font-size: 0.8rem;">Fidelity: ${esc(String(run.fidelityScore))}%</span>
+          <span style="background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-weight: 500; font-size: 0.8rem;">Cobertura: ${esc(String(run.fidelityScore))}%</span>
           <button class="copy-button" data-run-path="${esc(run.path)}" style="cursor:pointer; padding: 6px 12px; font-size: 0.8rem;">Cargar</button>
         </div>
       </div>
@@ -414,72 +417,30 @@ window.loadHistoryRun = async function(runPath) {
     document.querySelector("#url").value = targetRun.url;
     document.querySelector("#niche").value = targetRun.niche;
 
-    // Llamar a /api/extract con force=false (caché inmediato)
+    // Leer el resultado guardado (sin volver a navegar la referencia).
     setActiveTab("prompt");
-    document.querySelector("#outputPrompt").textContent = "Cargando datos desde caché...";
+    document.querySelector("#outputPrompt").textContent = "Cargando run guardado...";
     setRunning(true);
 
-    const response = await fetch("/api/extract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: targetRun.url, niche: targetRun.niche, force: false })
-    });
-
+    const response = await fetch(`/api/run?run=${encodeURIComponent(runPath)}`);
     if (!response.ok) throw new Error("Fallo al cargar run");
-    
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let eventType = null;
-    let eventData = "";
+    const parsed = await response.json();
 
-    const flush = () => {
-      if (eventType && eventData) {
-        let parsed;
-        try { parsed = JSON.parse(eventData); }
-        catch (e) { console.error("SSE JSON parse fail", e, eventData.slice(0, 200)); eventType = null; eventData = ""; return; }
-        if (eventType === "result") {
-          lastResponse = parsed;
-          document.querySelector("#outputPrompt").textContent = parsed.prompt;
-          populateEvidenceTabs(parsed.evidence);
-          // Restaurar el brief del cliente desde el run cargado (si existe).
-          if (parsed.evidence?.clientBrief) {
-            populateClientBrief(parsed.evidence.clientBrief);
-          }
-          const ft = parsed.evidence?.inspection?.technologies?.length || 0;
-          const ff = parsed.fidelityScore?.overall || 0;
-          const pk = Math.max(1, Math.round(new Blob([parsed.prompt]).size / 1024));
-          settleMetrics(ft, ff, pk);
-          if (parsed.artifactPath) {
-            artifactPath.textContent = `Cargado: ${parsed.artifactPath}`;
-          }
-          renderScreenshotsGrid(parsed.evidence, parsed.artifactPath);
-          setStatus("Cargado de caché");
-        }
-      }
-      eventType = null;
-      eventData = "";
-    };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) { flush(); break; }
-      buffer += decoder.decode(value, { stream: true });
-
-      let nl;
-      while ((nl = buffer.indexOf("\n")) !== -1) {
-        const line = buffer.slice(0, nl);
-        buffer = buffer.slice(nl + 1);
-
-        if (line === "") {
-          flush();
-        } else if (line.startsWith("event: ")) {
-          eventType = line.slice(7).trim();
-        } else if (line.startsWith("data: ")) {
-          eventData = eventData ? eventData + "\n" + line.slice(6) : line.slice(6);
-        }
-      }
+    lastResponse = parsed;
+    document.querySelector("#outputPrompt").textContent = promptOf(parsed);
+    loadCompares(runNameOf(parsed));
+    populateEvidenceTabs(parsed.evidence);
+    // Restaurar el brief del cliente desde el run cargado (si existe).
+    if (parsed.evidence?.clientBrief) {
+      populateClientBrief(parsed.evidence.clientBrief);
     }
+    const ft = parsed.evidence?.inspection?.technologies?.length || 0;
+    const ff = parsed.fidelityScore?.overall || 0;
+    const pk = Math.max(1, Math.round(new Blob([promptOf(parsed)]).size / 1024));
+    settleMetrics(ft, ff, pk);
+    artifactPath.textContent = `Cargado: ${parsed.artifactPath}`;
+    renderScreenshotsGrid(parsed.evidence, parsed.artifactPath);
+    setStatus("Cargado");
   } catch (err) {
     setStatus("Error al cargar");
     console.error(err);
@@ -612,7 +573,8 @@ form.addEventListener("submit", async (event) => {
       if (type === "result") {
         scannerView.stop();
         lastResponse = data;
-        document.querySelector("#outputPrompt").textContent = data.prompt;
+        document.querySelector("#outputPrompt").textContent = promptOf(data);
+        renderReport(null);
         populateEvidenceTabs(data.evidence);
 
         if (data.artifactPath) {
@@ -621,7 +583,7 @@ form.addEventListener("submit", async (event) => {
 
         const ft = data.evidence?.inspection?.technologies?.length || 0;
         const ff = data.fidelityScore?.overall || 0;
-        const pk = Math.max(1, Math.round(new Blob([data.prompt]).size / 1024));
+        const pk = Math.max(1, Math.round(new Blob([promptOf(data)]).size / 1024));
         settleMetrics(ft, ff, pk);
 
         renderScreenshotsGrid(data.evidence, data.artifactPath);
@@ -749,7 +711,7 @@ function setActiveTab(name) {
 
 copyButton.addEventListener("click", async () => {
   const prompt = document.querySelector("#outputPrompt").textContent;
-  await navigator.clipboard.writeText(prompt);
+  await copyText(prompt);
   const original = copyButton.textContent;
   copyButton.textContent = "Copied";
   setTimeout(() => {
@@ -759,7 +721,7 @@ copyButton.addEventListener("click", async () => {
 
 downloadPrompt.addEventListener("click", () => {
   if (!lastResponse) return;
-  downloadFile("prompt.md", lastResponse.prompt, "text/markdown");
+  downloadFile("PROMPT.md", promptOf(lastResponse), "text/markdown");
 });
 
 downloadEvidence.addEventListener("click", () => {
@@ -862,6 +824,175 @@ function downloadFile(name, content, type) {
   URL.revokeObjectURL(url);
 }
 
+// --- Copiar con respaldo: navigator.clipboard no existe fuera de HTTPS/localhost
+// (p. ej. abriendo el dashboard desde el móvil por la IP de la red local).
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } finally { ta.remove(); }
+  }
+}
+
+// --- Kit descargable -------------------------------------------------------
+const downloadKit = document.querySelector("#downloadKit");
+downloadKit.addEventListener("click", () => {
+  const run = runNameOf(lastResponse);
+  if (!run) { setStatus("Primero extrae una referencia"); return; }
+  if (!lastResponse?.kit) { setStatus("Este run no tiene kit: vuelve a extraerlo"); return; }
+  window.location.href = `/api/kit?run=${encodeURIComponent(run)}`;
+});
+
+// --- Medir build -----------------------------------------------------------
+const verifyForm = document.querySelector("#verifyForm");
+const verifyButton = document.querySelector("#verifyButton");
+const verifyStatus = document.querySelector("#verifyStatus");
+const verifyReport = document.querySelector("#verifyReport");
+const verifyHint = document.querySelector("#verifyHint");
+let lastReport = null;
+let dimensionLabels = {};
+
+fetch("/api/config").then((r) => (r.ok ? r.json() : null)).then((cfg) => {
+  if (!cfg) return;
+  dimensionLabels = cfg.dimensions || {};
+  if (!cfg.localOnly) stopServer.hidden = true;
+  verifyHint.textContent = cfg.allowLocalBuilds
+    ? "«localhost» es la máquina donde corre WebADN, no este dispositivo."
+    : "Este servidor solo puede medir URLs públicas (despliega tu build o usa un túnel).";
+}).catch(() => {});
+
+const scoreClass = (n) => (n >= 85 ? "is-good" : n >= 65 ? "is-mid" : "is-bad");
+const shotUrl = (run, file) => `/api/screenshots?run=${encodeURIComponent(run)}&file=${encodeURIComponent(file)}`;
+
+function renderReport(payload) {
+  lastReport = payload;
+  if (!payload) { verifyReport.innerHTML = ""; verifyStatus.textContent = ""; return; }
+  const { report, run } = payload;
+  const dims = Object.entries(report.dimensions || {}).map(([key, value]) => `
+    <li class="dim ${scoreClass(value)}">
+      <span class="dim-name">${esc(dimensionLabels[key] || key)}</span>
+      <span class="dim-bar"><i style="width:${Math.max(2, Math.round(value))}%"></i></span>
+      <span class="dim-value">${Math.round(value)}</span>
+    </li>`).join("");
+  const vps = Object.entries(report.viewports || {});
+  const vpLine = vps.map(([name, v]) => `${esc(name)} ${Math.round(v.score)}`).join(" · ");
+  const issues = (report.issues || []).slice(0, 40).map((it) => `
+    <li class="issue sev-${esc(it.severity || "low")}">
+      <div class="issue-head"><strong>${esc(it.title)}</strong><span class="issue-tags">${esc(it.viewport || "")} · ${esc(dimensionLabels[it.dimension] || it.dimension || "")}${it.impact ? ` · ≈${Number(it.impact).toFixed(1)} pts` : ""}</span></div>
+      ${it.expected !== undefined ? `<div class="issue-row"><span>Referencia</span><code>${esc(String(it.expected))}</code></div>` : ""}
+      ${it.actual !== undefined ? `<div class="issue-row"><span>Tu build</span><code>${esc(String(it.actual))}</code></div>` : ""}
+    </li>`).join("");
+  const pairs = vps.map(([name, v]) => {
+    const rows = (v.sections || []).filter((sec) => sec.refShot).map((sec) => `
+      <figure class="pair">
+        <figcaption>#${sec.index + 1} ${esc(sec.role || "")}${typeof sec.visual === "number" ? ` · parecido visual ${Math.round(sec.visual)}` : ""}${sec.issues ? ` · ${sec.issues} dif.` : ""}</figcaption>
+        <div class="pair-shots">
+          <div><span>Referencia</span><img loading="lazy" alt="Referencia, sección ${sec.index + 1}" src="${shotUrl(run, sec.refShot)}" /></div>
+          <div><span>Tu build</span>${sec.buildShot ? `<img loading="lazy" alt="Build, sección ${sec.index + 1}" src="${shotUrl(run, sec.buildShot)}" />` : `<p class="pair-missing">Sección ausente</p>`}</div>
+        </div>
+      </figure>`).join("");
+    return rows ? `<details class="pairs" ${name === "desktop" ? "open" : ""}><summary>Capturas lado a lado — ${esc(name)}</summary>${rows}</details>` : "";
+  }).join("");
+  const total = (report.issues || []).length;
+  verifyReport.innerHTML = `
+    <div class="score-card ${scoreClass(report.score)}">
+      <div class="score-number">${Math.round(report.score)}<small>/100</small></div>
+      <div class="score-meta">
+        <strong>${esc(report.verdict || "")}</strong>
+        <span>Objetivo ${esc(String(report.target ?? 85))} · ${vpLine}</span>
+        ${report.ignored?.length ? `<span>Sin puntuar: ${esc(report.ignored.map((d) => dimensionLabels[d] || d).join(", "))}</span>` : ""}
+        ${report.probeErrors?.length ? `<span class="score-warn">Mediciones incompletas: ${esc(report.probeErrors.slice(0, 2).join("; "))}</span>` : ""}
+      </div>
+    </div>
+    <ul class="dims">${dims}</ul>
+    <div class="report-actions">
+      <button class="copy-button" type="button" id="copyReport">Copiar informe para tu IA</button>
+    </div>
+    <h3 class="report-title">Qué corregir${total ? ` (${total})` : ""}</h3>
+    ${total ? `<ol class="issues">${issues}</ol>${total > 40 ? `<p class="verify-intro">Se muestran las 40 de mayor impacto; el informe copiado las incluye todas.</p>` : ""}` : `<p class="verify-intro">Sin diferencias relevantes.</p>`}
+    ${pairs}`;
+  verifyReport.querySelector("#copyReport").addEventListener("click", async (ev) => {
+    await copyText(payload.markdown || "");
+    ev.currentTarget.textContent = "Copiado ✓";
+  });
+}
+
+async function loadCompares(run) {
+  renderReport(null);
+  if (!run) return;
+  try {
+    const res = await fetch(`/api/kit?run=${encodeURIComponent(run)}&format=compares`);
+    if (!res.ok) return;
+    const { compares } = await res.json();
+    if (compares?.length) {
+      renderReport({ run, report: compares[0].report, markdown: "" });
+      verifyStatus.textContent = `Última medición: ${new Date(compares[0].report.comparedAt).toLocaleString()} (${compares.length} en total)`;
+      document.querySelector("#buildUrl").value = compares[0].report.build || "";
+    }
+  } catch { /* sin mediciones previas */ }
+}
+
+verifyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const run = runNameOf(lastResponse);
+  if (!run || !lastResponse?.kit) {
+    verifyStatus.textContent = "Primero extrae una referencia (o carga una desde History).";
+    return;
+  }
+  const data = new FormData(verifyForm);
+  verifyButton.disabled = true;
+  verifyButton.classList.add("loading");
+  verifyStatus.textContent = "Abriendo tu build en el navegador de medición…";
+  try {
+    const response = await fetch("/api/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run, buildUrl: data.get("buildUrl"), ignore: data.getAll("ignore") })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Error ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let got = false;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf("\n\n")) !== -1) {
+        const block = buffer.slice(0, cut);
+        buffer = buffer.slice(cut + 2);
+        const type = (block.match(/^event: (.+)$/m) || [])[1];
+        const raw = block.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("\n");
+        if (!type || !raw) continue;
+        const parsed = JSON.parse(raw);
+        if (type === "progress") verifyStatus.textContent = parsed.message || "Midiendo…";
+        if (type === "error") throw new Error(parsed.message);
+        if (type === "result") {
+          got = true;
+          renderReport(parsed);
+          verifyStatus.textContent = `Medido: ${new Date(parsed.report.comparedAt).toLocaleString()}`;
+        }
+      }
+    }
+    if (!got) throw new Error("La medición terminó sin resultado.");
+  } catch (error) {
+    verifyStatus.textContent = `No se pudo medir: ${error.message}`;
+  } finally {
+    verifyButton.disabled = false;
+    verifyButton.classList.remove("loading");
+  }
+});
+
 // --- Stop server (detiene el servidor node que corre oculto en background) ---
 stopServer.addEventListener("click", async () => {
   if (!confirm("¿Detener el servidor? Tendrás que volver a arrancarlo con start-dashboard-hidden.vbs.")) return;
@@ -897,7 +1028,7 @@ function resetWorkspace() {
   // Formulario: reset nativo + repoder preset/checkbox que reset() puede dejar mal.
   form.reset();
   const presetEl = document.querySelector("#preset");
-  if (presetEl) presetEl.value = "surgical";
+  if (presetEl) presetEl.value = "standard";
   const ignoreRobots = document.querySelector("[name=ignoreRobots]");
   if (ignoreRobots) ignoreRobots.checked = false;
 
@@ -916,6 +1047,7 @@ function resetWorkspace() {
   screenshotGrid.innerHTML = NO_SCREENSHOTS;
   artifactPath.textContent = "";
   lastResponse = null;
+  renderReport(null);
 
   // Métricas, estado y pestaña activa.
   resetMetrics();

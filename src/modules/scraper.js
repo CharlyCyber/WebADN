@@ -17,6 +17,7 @@ import { extractJsTokens, mergeJsTokens } from "./jsTokenExtractor.js";
 import { isHostPublic } from "../support/urlSafety.js";
 import { captureIntroTimeline, INTRO_INIT_SCRIPT } from "./introCapture.js";
 import { log } from "../support/logger.js";
+import { launchBrowser } from "../support/launchBrowser.js";
 
 const TECHNOLOGY_SIGNATURES = [
   { name: "GSAP", tests: ["gsap", "ScrollTrigger"] },
@@ -97,9 +98,8 @@ async function preparePageForExtraction(page, onProgress, preset = "standard") {
 }
 
 export async function inspectUrl({ url, headless = true, timeoutMs = 30000, preset = "standard", screenshotsPath, onProgress, browser: externalBrowser }) {
-  const { chromium } = await import("playwright");
   let ownBrowser = false;
-  const browser = externalBrowser || (ownBrowser = true, await chromium.launch({ headless, args: ["--disable-dev-shm-usage"] }));
+  const browser = externalBrowser || (ownBrowser = true, await launchBrowser({ headless }));
 
   try {
     const page = await browser.newPage({
@@ -382,13 +382,17 @@ onProgress?.({ step: "css-features", message: "Analizando features CSS..." });
 
       onProgress?.({ step: "screenshots", message: "Capturando viewports..." });
       const screenshotTimeout = Number(process.env.SCREENSHOT_TIMEOUT_MS || 90000);
+      let screenshotTimer;
       const visualEvidence = await Promise.race([
         captureViewportMatrix(page, screenshotsPath, preset),
-        new Promise((resolve) => setTimeout(() => {
-          console.warn(`[scraper] captureViewportMatrix timed out after ${screenshotTimeout}ms, continuing...`);
-          resolve([]);
-        }, screenshotTimeout))
+        new Promise((resolve) => {
+          screenshotTimer = setTimeout(() => {
+            console.warn(`[scraper] captureViewportMatrix timed out after ${screenshotTimeout}ms, continuing...`);
+            resolve([]);
+          }, screenshotTimeout);
+        })
       ]);
+      clearTimeout(screenshotTimer);
       result.visualEvidence = visualEvidence;
 
       await page.setViewportSize({ width: 1440, height: 1100 });

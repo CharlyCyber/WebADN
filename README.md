@@ -30,22 +30,37 @@ npm start -- --url "https://example.com" --niche "estudio premium de arquitectur
 --preset surgical
 ```
 
-### Cómo usar WebADN con Cursor / Claude Code
+### El flujo: extraer → construir → medir
+
 ```bash
-# 1. Extraer el contexto de un sitio de referencia
-npm start -- --url "https://example.com" --niche "tu-nicho"
+# 1. Extraer: mide la referencia y genera el kit en runs/<run>/kit/
+npm start -- --url "https://sitio-awwwards.com" --niche "clínica dental premium"
 
-# 2. Copia la carpeta webadn-context-output/ a tu workspace del IDE
-#    (contiene manifest.md, design-tokens.json, structure-layout.json, .cursorrules)
+# 2. Construir: dale kit/PROMPT.md a tu IA (pegado en un chat, o la carpeta kit/
+#    entera en Cursor / Claude Code) y sirve el resultado en local.
 
-# 3. En Cursor: los archivos en webadn-context-output/ sirven como contexto
-#    directo para el agente. El archivo .cursorrules ajusta el comportamiento
-#    del agente automáticamente.
+# 3. Medir: la misma sonda mide tu build y devuelve nota 0-100 + qué corregir
+node src/cli.js compare --ref runs/<run>/kit --build http://localhost:5173
 
-# 4. En Claude Code: pega el contenido de manifest.md + design-tokens.json
-#    como contexto del proyecto, y usa structure-layout.json + animations-behavior.md
-#    como referencia durante la generación.
+# 4. Pega el informe a tu IA y repite 3-4 hasta ≥ 85.
 ```
+
+`npm link` deja el comando `webadn` disponible globalmente (`webadn compare ...`).
+
+Opciones de `compare`: `--ignore color,typography` (no puntuar dimensiones que tu nicho cambia a
+propósito), `--min 85` (exit code 2 si no llega: útil en CI o en bucles de agente), `--json`,
+`--depth fast|standard|surgical`, `--out carpeta`. `--ref` acepta una URL, un `fingerprint.json`,
+la carpeta del kit o el nombre de un run.
+
+### Como herramienta MCP (Claude Code, Cursor…)
+
+El agente extrae y se mide solo, sin que copies nada:
+
+```json
+{ "mcpServers": { "webadn": { "command": "node", "args": ["/ruta/a/WebADN/src/cli.js", "mcp"] } } }
+```
+
+Herramientas: `webadn_extract(url, niche)` y `webadn_compare(reference, build_url, ignore?)`.
 
 ### Otras opciones
 ```bash
@@ -75,8 +90,14 @@ npm start -- --url "https://example.com" --niche "test" --download-binaries
 # Listar ejecuciones anteriores
 webadn list
 
-# Comparar dos ejecuciones
+# Medir un build contra una referencia (ver arriba)
+webadn compare --ref <kit|run|fingerprint.json|url> --build <url>
+
+# Tabular los metadatos de dos extracciones
 webadn compare <runFolder1> <runFolder2>
+
+# Servidor MCP por stdio
+webadn mcp
 ```
 
 ## Dashboard web
@@ -85,13 +106,28 @@ webadn compare <runFolder1> <runFolder2>
 npm run web
 ```
 
-Abre `http://127.0.0.1:4173` y ejecuta extracciones desde la interfaz gráfica.
+Abre `http://127.0.0.1:4173`. Desde la interfaz puedes extraer, copiar el prompt, descargar el
+kit en `.zip` y, en la pestaña **Medir build**, obtener el informe de fidelidad con capturas
+lado a lado. La interfaz es responsive.
+
+### Usarlo desde el móvil
+
+```bash
+HOST=0.0.0.0 npm run web     # luego abre http://<IP-de-tu-PC>:4173 en el móvil
+```
+
+El navegador que mide corre en el PC; el móvil solo es la pantalla. Por eso, en "URL de tu
+build", `localhost` significa el PC.
 
 ### Seguridad del dashboard
-- Escucha solo en `127.0.0.1` (no accesible desde la red).
-- Opcional: define `AUTH_TOKEN=tu-token` en `.env` para proteger los endpoints.
-- Rate limit: máximo 5 peticiones por minuto por IP.
-- Streaming SSE en tiempo real para ver el progreso de extracción.
+- Por defecto escucha solo en `127.0.0.1`. Con `HOST=0.0.0.0` queda accesible a toda tu red:
+  úsalo solo en redes de confianza.
+- Medir URLs locales/privadas solo está permitido por defecto cuando el servidor es local
+  (`ALLOW_LOCAL_BUILDS`); en un servidor expuesto permitiría sondear la red interna.
+- `/api/shutdown` solo responde a la propia máquina.
+- `AUTH_TOKEN` exige cabecera `Authorization: Bearer` en todas las rutas (pensado para API /
+  proxy inverso; un navegador no la envía por sí solo).
+- Rate limit: máximo 5 peticiones POST por minuto por IP.
 
 ## Variables de entorno
 
@@ -112,26 +148,41 @@ Copia `.env.example` a `.env`. Variables disponibles:
 | `MAX_QUEUE` | `10` | Máximo en cola de espera |
 | `TRUST_PROXY` | `false` | Confiar en header X-Forwarded-For |
 | `AUTH_TOKEN` | — | Token Bearer para proteger el dashboard |
+| `HOST` | `127.0.0.1` | Interfaz de escucha (`0.0.0.0` para la red local / móvil) |
+| `ALLOW_LOCAL_BUILDS` | `true` si HOST es local | Permitir medir builds en localhost/red privada |
+| `ALLOW_EMBED` | `false` | Quitar `X-Frame-Options: DENY` (dashboard dentro de un iframe) |
+| `CHROMIUM_PATH` | — | Usar un Chromium ya instalado en vez del de Playwright |
 
-## Salida Dual
+## Salida: el Build Kit
 
-WebADN genera dos formas de output simultáneamente:
+Cada extracción escribe `runs/<run>/kit/`:
 
-### 1. Mega-Brief (`prompt.md`)
-El markdown completo con diagnóstico técnico, diseño, animaciones, CRO y prompt final ejecutable.
+| Archivo | Para quién | Qué es |
+|---------|-----------|--------|
+| `PROMPT.md` | La IA que construye | Encargo autocontenido: reglas, sistema de diseño, tabla tipográfica, cada sección con su layout y sus animaciones (propiedades, duración, retardo, easing, stagger), scroll (pins, parallax), hovers y criterios de aceptación. Se puede pegar tal cual en un chat. |
+| `spec.json` | Agentes con acceso a archivos | Las mismas medidas completas y exactas, por viewport (escritorio 1440 y móvil 390). Fuente de verdad. |
+| `screenshots/` | Modelos con visión | Una captura por sección, escritorio y móvil. |
+| `fingerprint.json` | `webadn compare` | La huella contra la que se mide tu build. |
+| `extras/brief.md` | Opcional | El mega-brief clásico (CRO, stack detectado, assets). |
 
-### 2. Paquete de Contexto Estructurado (`webadn-context-output/`)
-Carpeta diseñada para consumo directo por agentes de IA en IDEs:
+Por qué este formato: un prompt solo pierde precisión (los modelos redondean números en prosa) y
+un JSON solo no le dice al modelo qué hacer. El prompt dirige, el JSON precisa, las capturas
+desambiguan y la huella permite **verificar**.
 
-| Archivo | Propósito |
-|---------|-----------|
-| `manifest.md` | Resumen ejecutivo, diagnóstico de conversión, nicho objetivo |
-| `design-tokens.json` | Paleta exacta, escala de spacing, tipografías, sombras |
-| `structure-layout.json` | Grid, proporciones, orden de secciones |
-| `animations-behavior.md` | Keyframes, transiciones, lógica GSAP/Three.js |
-| `.cursorrules` | Reglas automáticas para Cursor IDE |
+### Cómo se calcula la fidelidad
 
-Para usar con Cursor: copia la carpeta `webadn-context-output/` a tu workspace. Para Claude Code: usa los archivos como contexto de proyecto.
+`compare` mide el build con la misma sonda y puntúa 8 dimensiones en escritorio (65 %) y móvil
+(35 %): estructura 12 %, layout 18 %, tipografía 18 %, color 12 %, animación y scroll 18 %,
+hover 7 %, efectos 5 %, composición visual 10 %. No compara textos ni imágenes, así que adaptar
+el contenido a tu nicho no baja la nota. Es una medida del sistema visual y de movimiento, no un
+juicio estético: ≥ 85 significa que las medidas coinciden, no que el sitio sea igual de bueno.
+
+Límites conocidos: el contenido WebGL/canvas se detecta y se captura, pero no se puede medir por
+dentro; animaciones que dependen de interacción compleja (arrastre, audio) no se disparan; sitios
+con protección anti-bot pueden no cargar.
+
+En `runs/<run>/` siguen estando `prompt.md`, `evidence.json` y `webadn-context-output/` de la
+versión anterior.
 
 ## Qué puede y qué no puede detectar
 

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Clínica Alba — Odontología</title>
+<style>
+  :root { --bg: #ffffff; --ink: #222222; --accent: #2563eb; --surface: #f3f4f6; --ease: cubic-bezier(0.22, 1, 0.36, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { overflow-x: clip; }
+  body { background: var(--bg); color: var(--ink); font-family: "Helvetica Neue", Arial, sans-serif; font-size: 18px; line-height: 1.5; }
+  a { color: inherit; text-decoration: none; }
+  .nav { position: fixed; top: 0; left: 0; right: 0; height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 48px; z-index: 10; mix-blend-mode: difference; }
+  .nav a { font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; margin-left: 32px; transition: opacity 0.3s var(--ease); }
+  .nav a:hover { opacity: 0.5; }
+  section { position: relative; padding: 48px 48px; }
+  .hero { min-height: 50vh; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 80px; }
+  .hero h1 { font-weight: 700; font-size: 48px; line-height: 1.2; }
+  .hero p { max-width: 520px; margin-top: 40px; color: rgba(244, 241, 234, 0.7); }
+  .btn { display: inline-block; margin-top: 48px; padding: 18px 36px; border-radius: 4px; background: var(--accent); color: #0d0f12; font-weight: 600; font-size: 16px; transition: transform 0.4s var(--ease), background-color 0.4s var(--ease); }
+  
+  .marquee { padding: 40px 0; overflow: hidden; white-space: nowrap; border-top: 1px solid rgba(244,241,234,0.15); border-bottom: 1px solid rgba(244,241,234,0.15); }
+  .marquee span { display: inline-block; font-family: Georgia, serif; font-size: 72px; padding-right: 64px;  }
+  @keyframes slide { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+  .work h2, .about h2, .contact h2 { font-weight: 700; font-size: 32px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 32px; }
+  .card { cursor: pointer; }
+  .card .media { aspect-ratio: 16 / 5; border-radius: 0; overflow: hidden; background: var(--surface); }
+  .card .media div { width: 100%; height: 100%; background: linear-gradient(160deg, #3b4252, #1a1d22 70%); transition: transform 0.8s var(--ease); }
+  
+  .card h3 { font-size: 24px; font-weight: 500; margin-top: 20px; }
+  .card p { font-size: 14px; color: rgba(244, 241, 234, 0.5); text-transform: uppercase; letter-spacing: 0.08em; }
+  .pin { height: 60vh; padding: 0; background: var(--ink); color: var(--bg); }
+  .pin .stage { height: 60vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .pin .word { font-family: Georgia, serif; font-size: clamp(64px, 14vw, 220px); letter-spacing: -0.05em; will-change: transform; }
+  .about { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+  .about .photo { height: 640px; border-radius: 0; background: linear-gradient(200deg, #d8ff66, #3b4252); will-change: transform; }
+  .contact { text-align: center; background: var(--surface); }
+  footer { padding: 64px 48px; display: flex; justify-content: space-between; font-size: 14px; color: rgba(244,241,234,0.5); }
+  footer a { margin-left: 24px; }
+  .reveal { }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (max-width: 720px) {
+    section { padding: 96px 20px; }
+    .nav { padding: 0 20px; } .nav a { margin-left: 16px; font-size: 12px; }
+    .grid, .about { grid-template-columns: 1fr; }
+    .about .photo { height: 360px; }
+    footer { flex-direction: column; gap: 16px; padding: 48px 20px; }
+  }
+</style>
+</head>
+<body>
+<nav class="nav"><a href="#">Alba</a><div><a href="#work">Tratamientos</a><a href="#about">Equipo</a><a href="#contact">Contacto</a></div></nav>
+<main>
+  <section class="hero">
+    <h1 class="reveal">Sonrisas serenas para vidas intensas</h1>
+    <p class="reveal">Una clínica dental que diseña tratamientos tranquilos y precisos en Miami desde 2011.</p>
+    <div><a class="btn reveal" href="#contact">Reserva tu cita</a></div>
+  </section>
+  <section class="marquee"><span>Implantes — Ortodoncia — Estética — </span><span>Implantes — Ortodoncia — Estética — </span></section>
+  <section class="work" id="work">
+    <h2 class="reveal">Tratamientos</h2>
+    <div class="grid">
+      <article class="card reveal"><div class="media"><div></div></div><h3>Implantes</h3><p>Desde $900</p></article>
+      <article class="card reveal"><div class="media"><div></div></div><h3>Ortodoncia</h3><p>Desde $1,800</p></article>
+      <article class="card reveal"><div class="media"><div></div></div><h3>Blanqueamiento</h3><p>Desde $250</p></article>
+    </div>
+  </section>
+  <section class="pin"><div class="stage"><div class="word">Calma</div></div></section>
+  <section class="about" id="about">
+    <div><h2 class="reveal">Un equipo de doce</h2><p class="reveal">Atendemos pocos pacientes al día para que cada tratamiento reciba la atención que merece.</p></div>
+    <div class="photo" data-parallax="0.15"></div>
+  </section>
+  <section class="contact" id="contact">
+    <h2 class="reveal">Hablemos de tu sonrisa</h2>
+    <a class="btn reveal" href="mailto:hola@example.com">hola@example.com</a>
+  </section>
+</main>
+<footer><span>© Clínica Alba</span><div><a href="#">Instagram</a><a href="#">LinkedIn</a><a href="#">Journal</a><a href="#">Press</a><a href="#">Careers</a><a href="#">Legal</a></div></footer>
+
+</body>
+</html>

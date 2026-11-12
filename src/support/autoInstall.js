@@ -6,15 +6,15 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 export async function ensureDependencies() {
-  if (process.env.NODE_ENV === "production") {
-    console.error("Dependencies missing. Run 'npm ci' manually.");
-    process.exit(1);
-  }
-
   const nodeModules = join(ROOT, "node_modules");
   const playwrightDir = join(nodeModules, "playwright");
 
   if (existsSync(playwrightDir)) return;
+
+  if (process.env.NODE_ENV === "production") {
+    console.error("Dependencies missing. Run 'npm ci' manually.");
+    process.exit(1);
+  }
 
   console.log("Installing dependencies...");
   try {

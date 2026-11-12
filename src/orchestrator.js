@@ -21,10 +21,12 @@ import { join } from "node:path";
 import { initBrowserPool, getBrowser } from "./support/browserPool.js";
 import { computeVisualSimilarity } from "./modules/visualSimilarity.js";
 import { generateFromIR } from "./modules/irCodegen.js";
-import { runVerificationLoop, classifySiteCategory } from "./modules/verificationLoop.js";
+import { classifySiteCategory } from "./modules/verificationLoop.js";
 import { analyzeScreenshotPixels } from "./modules/screenshotQuality.js";
 import { buildReferenceExperienceIR } from "./modules/referenceIrBuilder.js";
-import { computeRenderedSimilarity } from "./modules/renderedSimilarity.js";
+import { captureFingerprint } from "./modules/siteProbe.js";
+import { writeKit, KIT_DIR, REF_SHOT_PREFIX } from "./modules/buildKit.js";
+import { basename } from "node:path";
 
 export async function runOrchestrator(config) {
   const pipelineContext = { timings: {}, data: {} };
@@ -35,16 +37,15 @@ export async function runOrchestrator(config) {
     { name: 'scraper', fn: runScraper },
     { name: 'analysis', fn: runAnalysis },
     { name: 'buildReferenceIR', fn: runBuildReferenceIR },
+    { name: 'fingerprint', fn: runFingerprint },
     { name: 'pixelAndSpacing', fn: runPixelAndSpacing },
     { name: 'designAndFidelity', fn: runDesignAndFidelity },
     { name: 'llmInterpretation', fn: runLlmInterpretation },
     { name: 'saveArtifacts', fn: runSaveArtifacts },
     { name: 'packageContext', fn: runPackageContext },
     { name: 'generateSite', fn: runGenerateSite },
-    { name: 'renderGeneratedSite', fn: runRenderGeneratedSite },
-    { name: 'measureRenderedSimilarity', fn: runMeasureRenderedSimilarity },
-    { name: 'repairWeakSections', fn: runRepairWeakSections },
     { name: 'generatePrompt', fn: runGeneratePrompt },
+    { name: 'buildKit', fn: runBuildKit },
     { name: 'verifyFidelity', fn: runVerifyFidelity },
   ];
 
@@ -69,7 +70,8 @@ export async function runOrchestrator(config) {
     artifactPath: pipelineContext.data.saveArtifacts?.artifactPath,
     evidence: pipelineContext.data.saveArtifacts?.evidence,
     referenceExperienceIR: pipelineContext.data.saveArtifacts?.evidence?.referenceExperienceIR,
-    fidelityScore: pipelineContext.data.saveArtifacts?.evidence?.fidelityScore
+    fidelityScore: pipelineContext.data.saveArtifacts?.evidence?.fidelityScore,
+    kit: pipelineContext.data.buildKit?.kit || null
   };
 }
 
@@ -82,8 +84,12 @@ async function runCacheCheck(ctx, config) {
       const evidence = JSON.parse(await readFile(join(recentPath, "evidence.json"), "utf8"));
       const prompt = await readFile(join(recentPath, "prompt.md"), "utf8");
       log("info", "orchestrator", "Cache hit", { path: recentPath });
+      let kit = null;
+      try {
+        kit = { run: basename(recentPath), path: join(recentPath, KIT_DIR), prompt: await readFile(join(recentPath, KIT_DIR, "PROMPT.md"), "utf8") };
+      } catch { /* run anterior al kit */ }
       return {
-        cached: { prompt, artifactPath: recentPath, evidence, fidelityScore: evidence.fidelityScore }
+        cached: { prompt, artifactPath: recentPath, evidence, fidelityScore: evidence.fidelityScore, kit }
       };
     } catch (err) {
       config.onProgress?.({ step: "cache-error", message: "Fallo al leer cache local, procediendo a extraccion nueva..." });
@@ -377,37 +383,54 @@ async function runBuildReferenceIR(ctx, config) {
   return { referenceExperienceIR: evidence.referenceExperienceIR };
 }
 
-async function runRenderGeneratedSite(ctx, config) {
-  return {};
-}
-
-async function runMeasureRenderedSimilarity(ctx, config) {
-  const { evidence } = ctx.data;
-  if (!evidence.referenceExperienceIR || !ctx.data.generatedSite) return {};
+// Mide el sitio con la sonda (misma que usará `webadn compare` sobre el build).
+async function runFingerprint(ctx, config) {
+  const { evidence, paths, effectivePreset } = ctx.data;
+  if (config.dryRun || config.fingerprint === false) return {};
   try {
-    const generatedIR = buildReferenceExperienceIR({
-      url: evidence.url,
-      niche: evidence.niche,
-      inspection: ctx.data.generatedSite
+    const fingerprint = await captureFingerprint({
+      url: config.url,
+      browser: await getBrowser(),
+      shotsDir: paths.screenshotsPath,
+      prefix: REF_SHOT_PREFIX,
+      depth: effectivePreset || config.preset || "standard",
+      timeoutMs: Math.max(30000, Number(config.timeoutMs) || 45000),
+      onProgress: config.onProgress
     });
-    const similarity = computeRenderedSimilarity(evidence.referenceExperienceIR, generatedIR);
-    evidence.renderedSimilarity = similarity;
+    ctx.data.siteFingerprint = fingerprint;
+    const d = fingerprint.viewports.desktop || Object.values(fingerprint.viewports)[0];
+    evidence.probe = {
+      viewports: Object.keys(fingerprint.viewports),
+      sections: d.sections.length,
+      motion: d.motion.summary,
+      errors: fingerprint.errors
+    };
+    log("info", "fingerprint", "Huella medida", evidence.probe);
   } catch (err) {
-    log("error", "renderedSimilarity", "Fallo comparación renderizada", { error: err.message });
+    log("error", "fingerprint", "Fallo la medicion de la huella", { error: err.message });
+    evidence.probe = { error: err.message };
   }
   return {};
 }
 
-async function runRepairWeakSections(ctx, config) {
-  const { evidence } = ctx.data;
-  if (!evidence.renderedSimilarity || evidence.renderedSimilarity.overall >= 80) return {};
-  evidence.repairAttempted = true;
-  evidence.repairPlan = evidence.renderedSimilarity.weakSections.map(s => ({
-    sectionId: s.sectionId,
-    reason: s.reason,
-    action: "REGENERATE_SECTION_FROM_IR"
-  }));
-  return {};
+async function runBuildKit(ctx, config) {
+  const { siteFingerprint: fingerprint, paths, evidence } = ctx.data;
+  if (!fingerprint) return {};
+  try {
+    const kit = await writeKit({
+      runPath: paths.runPath,
+      fingerprint,
+      niche: config.niche,
+      url: config.url,
+      clientBrief: config.clientBrief || evidence.clientBrief || null,
+      legacyBrief: ctx.data.generatePrompt || null
+    });
+    log("info", "buildKit", "Kit generado en " + kit.kitPath);
+    return { kit: { run: paths.runName, path: kit.kitPath, prompt: kit.prompt } };
+  } catch (err) {
+    log("error", "buildKit", "Fallo al generar el kit", { error: err.message });
+    return {};
+  }
 }
 
 async function runGenerateSite(ctx, config) {
@@ -445,25 +468,6 @@ async function runVerifyFidelity(ctx, config) {
       });
     }
 
-    // Loop de verificación usando IR comparado
-    if (config.verifyLoop !== false) {
-      const referenceIR = evidence.referenceExperienceIR;
-      const generatedIR = ctx.data.generatedSite
-        ? buildReferenceExperienceIR({
-            url: evidence.url,
-            niche: evidence.niche,
-            inspection: ctx.data.generatedSite
-          })
-        : null;
-      if (referenceIR && generatedIR) {
-        const loopResult = await runVerificationLoop({ referenceIR, generatedIR, threshold: 80 });
-        evidence.verificationLoop = loopResult;
-        log("info", "verify", "Loop de verificación: " + (loopResult.success ? "PASÓ" : "NO PASÓ"), {
-          score: loopResult.similarity?.overall,
-          repairs: (loopResult.repairs || []).length,
-        });
-      }
-    }
   } catch (err) {
     log("error", "verify", "Fallo cálculo de similitud", { error: err.message });
   }
