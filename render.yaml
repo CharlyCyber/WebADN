@@ -1,0 +1,17 @@
+# Blueprint de Render: New + → Blueprint → elige este repositorio.
+services:
+  - type: web
+    name: webadn
+    runtime: docker
+    plan: standard           # 2 GB de RAM; con 512 MB (free/starter) Chromium se queda sin memoria, ver docs/deploy-render.md
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: AUTH_TOKEN      # contraseña del dashboard; Render te la pide al crear el servicio
+        sync: false
+      - key: MAX_CONCURRENT
+        value: "1"
+    disk:                    # conserva historial y kits entre despliegues (solo planes de pago)
+      name: webadn-runs
+      mountPath: /data
+      sizeGB: 1

@@ -1,7 +1,7 @@
 // @ts-check
 import { mkdir, writeFile } from "node:fs/promises";
 import { readdirSync, statSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
@@ -9,7 +9,10 @@ function runKey(url, niche, preset) {
   return createHash("sha1").update(`${url}|${niche || ""}|${preset || "standard"}`).digest("hex").slice(0, 10);
 }
 
-const RUNS_DIR = fileURLToPath(new URL("../../runs", import.meta.url));
+// RUNS_DIR permite apuntar las extracciones a un disco persistente (p. ej. en Render).
+const RUNS_DIR = process.env.RUNS_DIR
+  ? resolve(process.env.RUNS_DIR)
+  : fileURLToPath(new URL("../../runs", import.meta.url));
 
 export function createRunFolder(url, niche = "", preset = "standard") {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
