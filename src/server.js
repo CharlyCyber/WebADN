@@ -9,6 +9,7 @@ import { RUNS_DIR } from "./support/artifacts.js";
 import { Semaphore } from "./support/jobQueue.js";
 import { ensureDependencies } from "./support/autoInstall.js";
 import { runCompare } from "./compare.js";
+import { checkPassword, clearSessionCookie, isAuthorized, loginPage, sessionCookie } from "./support/auth.js";
 import { KIT_DIR, zipKit } from "./modules/buildKit.js";
 import { DIMENSIONS, DIMENSION_LABELS } from "./modules/fingerprintCompare.js";
 
@@ -29,6 +30,16 @@ const flag = (name, fallback) => (process.env[name] === undefined ? fallback : S
 // servidor expuesto permitiría sondear la red interna: ahí hay que activarlo a propósito.
 const ALLOW_LOCAL_BUILDS = flag("ALLOW_LOCAL_BUILDS", IS_LOCAL_ONLY);
 const ALLOW_EMBED = flag("ALLOW_EMBED", false);
+
+// En un hosting público sin contraseña cualquiera con la URL podría lanzar navegadores
+// en tu servidor: mejor no arrancar que arrancar abierto.
+if (process.env.RENDER && !AUTH_TOKEN) {
+  console.error("Falta AUTH_TOKEN: define la contraseña del dashboard en las variables de entorno de Render.");
+  process.exit(1);
+}
+if (AUTH_TOKEN && !IS_LOCAL_ONLY && AUTH_TOKEN.length < 12) {
+  console.warn("Aviso: AUTH_TOKEN tiene menos de 12 caracteres; usa una contraseña más larga.");
+}
 const extractionSemaphore = new Semaphore(MAX_CONCURRENT);
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
@@ -91,18 +102,38 @@ const server = createServer(async (request, response) => {
   try {
     setSecurityHeaders(response);
 
-    if (AUTH_TOKEN) {
-      const auth = request.headers["authorization"];
-      if (auth !== `Bearer ${AUTH_TOKEN}`) {
-        sendJson(response, 401, { error: "unauthorized" });
-        return;
-      }
-    }
-
     const urlObj = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
     const pathname = urlObj.pathname;
 
     const clientIp = getClientIp(request);
+
+    // Comprobación de vida para el hosting (sin datos, sin autenticación).
+    if (pathname === "/healthz") {
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (AUTH_TOKEN) {
+      if (pathname === "/login") {
+        await handleLogin(request, response, clientIp);
+        return;
+      }
+      if (pathname === "/logout") {
+        response.writeHead(303, { Location: "/login", "Set-Cookie": clearSessionCookie() });
+        response.end();
+        return;
+      }
+      if (!isAuthorized(AUTH_TOKEN, request.headers)) {
+        const wantsHtml = request.method === "GET" && !pathname.startsWith("/api/") && String(request.headers.accept || "").includes("text/html");
+        if (wantsHtml) {
+          response.writeHead(303, { Location: "/login" });
+          response.end();
+        } else {
+          sendJson(response, 401, { error: "unauthorized" });
+        }
+        return;
+      }
+    }
 
     // El rate limit protege la extracción (operación cara, POST). Las rutas de
     // solo lectura (/api/runs, /api/screenshots) pueden generar ráfagas legítimas
@@ -145,7 +176,7 @@ const server = createServer(async (request, response) => {
         return;
       }
       if (pathname === "/api/config") {
-        sendJson(response, 200, { localOnly: IS_LOCAL_ONLY, allowLocalBuilds: ALLOW_LOCAL_BUILDS, dimensions: DIMENSION_LABELS });
+        sendJson(response, 200, { localOnly: IS_LOCAL_ONLY, auth: Boolean(AUTH_TOKEN), allowLocalBuilds: ALLOW_LOCAL_BUILDS, dimensions: DIMENSION_LABELS });
         return;
       }
       if (pathname === "/api/run") {
@@ -173,6 +204,60 @@ const server = createServer(async (request, response) => {
     }
   }
 });
+
+function sendHtml(response, statusCode, html) {
+  response.writeHead(statusCode, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+  response.end(html);
+}
+
+async function handleLogin(request, response, clientIp) {
+  if (request.method === "GET") {
+    if (isAuthorized(AUTH_TOKEN, request.headers)) {
+      response.writeHead(303, { Location: "/" });
+      response.end();
+      return;
+    }
+    sendHtml(response, 200, loginPage());
+    return;
+  }
+  if (request.method !== "POST") {
+    sendJson(response, 405, { error: "Method not allowed" });
+    return;
+  }
+  // Mismo cupo que las extracciones: 5 intentos por minuto e IP.
+  try {
+    checkRateLimit(`login:${clientIp}`);
+  } catch {
+    sendHtml(response, 429, loginPage({ error: "Demasiados intentos. Espera un minuto." }));
+    return;
+  }
+  const raw = await readRawBody(request, 4096);
+  const password = new URLSearchParams(raw).get("password") || "";
+  if (!checkPassword(AUTH_TOKEN, password)) {
+    sendHtml(response, 401, loginPage({ error: "Contraseña incorrecta." }));
+    return;
+  }
+  const secure = request.headers["x-forwarded-proto"] === "https" || Boolean(request.socket.encrypted);
+  response.writeHead(303, { Location: "/", "Set-Cookie": sessionCookie(AUTH_TOKEN, { secure }) });
+  response.end();
+}
+
+function readRawBody(request, limit) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    request.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > limit) {
+        request.destroy();
+        const err = new Error("Payload too large.");
+        err.status = 413;
+        reject(err);
+      }
+    });
+    request.on("end", () => resolve(raw));
+    request.on("error", reject);
+  });
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`Dashboard ready at http://${IS_LOCAL_ONLY ? "127.0.0.1" : HOST}:${PORT}`);

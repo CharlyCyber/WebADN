@@ -862,6 +862,13 @@ fetch("/api/config").then((r) => (r.ok ? r.json() : null)).then((cfg) => {
   if (!cfg) return;
   dimensionLabels = cfg.dimensions || {};
   if (!cfg.localOnly) stopServer.hidden = true;
+  if (cfg.auth) {
+    const out = document.createElement("a");
+    out.href = "/logout";
+    out.className = "copy-button";
+    out.textContent = "Salir";
+    stopServer.parentElement.appendChild(out);
+  }
   verifyHint.textContent = cfg.allowLocalBuilds
     ? "«localhost» es la máquina donde corre WebADN, no este dispositivo."
     : "Este servidor solo puede medir URLs públicas (despliega tu build o usa un túnel).";

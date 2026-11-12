@@ -119,14 +119,19 @@ HOST=0.0.0.0 npm run web     # luego abre http://<IP-de-tu-PC>:4173 en el móvil
 El navegador que mide corre en el PC; el móvil solo es la pantalla. Por eso, en "URL de tu
 build", `localhost` significa el PC.
 
+### Usarlo sin tu PC (Render)
+
+El repo incluye `Dockerfile` y `render.yaml`. Guía paso a paso, plan recomendado y límites en
+[`docs/deploy-render.md`](docs/deploy-render.md).
+
 ### Seguridad del dashboard
 - Por defecto escucha solo en `127.0.0.1`. Con `HOST=0.0.0.0` queda accesible a toda tu red:
   úsalo solo en redes de confianza.
 - Medir URLs locales/privadas solo está permitido por defecto cuando el servidor es local
   (`ALLOW_LOCAL_BUILDS`); en un servidor expuesto permitiría sondear la red interna.
 - `/api/shutdown` solo responde a la propia máquina.
-- `AUTH_TOKEN` exige cabecera `Authorization: Bearer` en todas las rutas (pensado para API /
-  proxy inverso; un navegador no la envía por sí solo).
+- `AUTH_TOKEN` es la contraseña del dashboard: el navegador entra por `/login` (cookie de sesión
+  firmada, 30 días) y los scripts con `Authorization: Bearer <AUTH_TOKEN>`.
 - Rate limit: máximo 5 peticiones POST por minuto por IP.
 
 ## Variables de entorno
@@ -151,6 +156,7 @@ Copia `.env.example` a `.env`. Variables disponibles:
 | `HOST` | `127.0.0.1` | Interfaz de escucha (`0.0.0.0` para la red local / móvil) |
 | `ALLOW_LOCAL_BUILDS` | `true` si HOST es local | Permitir medir builds en localhost/red privada |
 | `ALLOW_EMBED` | `false` | Quitar `X-Frame-Options: DENY` (dashboard dentro de un iframe) |
+| `RUNS_DIR` | `./runs` | Carpeta de extracciones (p. ej. un disco persistente) |
 | `CHROMIUM_PATH` | — | Usar un Chromium ya instalado en vez del de Playwright |
 
 ## Salida: el Build Kit
