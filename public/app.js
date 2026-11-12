@@ -1,831 +1,43 @@
-const form = document.querySelector("#extractForm");
-const runButton = document.querySelector(".run-button");
-const statusDot = document.querySelector("#statusDot");
-const statusText = document.querySelector("#statusText");
-const copyButton = document.querySelector("#copyButton");
-const downloadPrompt = document.querySelector("#downloadPrompt");
-const downloadEvidence = document.querySelector("#downloadEvidence");
-const exportToAIStudio = document.querySelector("#exportToAIStudio");
-const resetButton = document.querySelector("#resetButton");
-const stopServer = document.querySelector("#stopServer");
-const techCount = document.querySelector("#techCount");
-const fidelityScore = document.querySelector("#fidelityScore");
-const promptSize = document.querySelector("#promptSize");
-const artifactPath = document.querySelector("#artifactPath");
-const tabBar = document.querySelector("#tabBar");
-const runList = document.querySelector("#runList");
-const screenshotGrid = document.querySelector("#screenshotGrid");
+// WebADN — dashboard. Tres pasos: Extraer → Kit → Medir.
 
-// --- Dynamic project sections list (Client Brief) ---
-const sectionsList = document.querySelector("#sectionsList");
-const addSectionBtn = document.querySelector("#addSection");
-let sectionSeq = 0;
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const safeColor = (c) => (/^#[0-9a-f]{3,8}$/i.test(String(c)) ? c : "transparent");
+const shotUrl = (run, file) => `/api/screenshots?run=${encodeURIComponent(run)}&file=${encodeURIComponent(file)}`;
+const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return String(url || ""); } };
+const vpName = (n) => ({ desktop: "escritorio", mobile: "móvil", "desktop+mobile": "escritorio y móvil" }[n] || String(n || ""));
+const fmtDate = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); };
 
-// Sugerencias rápidas para el datalist de cada sección.
-const COMMON_SECTIONS = ["Hero", "Sobre nosotros", "Servicios", "Portafolio", "Procesos", "Testimonios", "Pricing", "FAQ", "Equipo", "Blog", "Contacto", "Footer"];
+let kit = null;            // { run, url, niche, generatedAt, prompt, fingerprint }
+let lastReport = null;     // { report, markdown }
+let dimensionLabels = {};
+let sectionViewport = "desktop";
+let sectionIndex = 0;
 
-/**
- * Añade una fila a la lista de secciones del sitio.
- * @param {{name?:string, copy?:string}} [initial]  Valores precargados (ej. al abrir un run del historial).
- */
-function addSection(initial = {}) {
-  if (!sectionsList) return;
-  const id = ++sectionSeq;
-  const row = document.createElement("div");
-  row.className = "section-row";
-  row.dataset.row = id;
-
-  const nameInput = document.createElement("input");
-  nameInput.type = "text";
-  nameInput.placeholder = "Nombre de la sección (ej: Hero)";
-  nameInput.value = initial.name || "";
-  nameInput.setAttribute("list", "sectionSuggestions");
-  nameInput.setAttribute("aria-label", "Nombre de la sección");
-
-  const copyInput = document.createElement("textarea");
-  copyInput.placeholder = "Descripción / copy / objetivo de esta sección";
-  copyInput.value = initial.copy || "";
-  copyInput.setAttribute("aria-label", "Descripción de la sección");
-
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.className = "remove-section";
-  removeBtn.textContent = "×";
-  removeBtn.title = "Quitar sección";
-  removeBtn.setAttribute("aria-label", "Quitar sección");
-  removeBtn.addEventListener("click", () => {
-    row.remove();
-  });
-
-  row.appendChild(nameInput);
-  row.appendChild(copyInput);
-  row.appendChild(removeBtn);
-  sectionsList.appendChild(row);
-}
-
-/**
- * Recolecta el brief completo introducido por el usuario.
- * Devuelve un objeto plano listo para serializar en el payload.
- */
-function collectClientBrief() {
-  const sections = [];
-  if (sectionsList) {
-    for (const row of sectionsList.querySelectorAll(".section-row")) {
-      const [nameInput, copyInput] = row.querySelectorAll("input, textarea");
-      const name = (nameInput?.value || "").trim();
-      const copy = (copyInput?.value || "").trim();
-      if (name || copy) {
-        sections.push({ name: name || "(sin título)", copy });
-      }
-    }
-  }
-
-  const brief = {
-    brandName: (document.querySelector("#brandName")?.value || "").trim(),
-    niche: (document.querySelector("#niche")?.value || "").trim(),
-    audience: (document.querySelector("#audience")?.value || "").trim(),
-    tone: (document.querySelector("#tone")?.value || "").trim(),
-    sections,
-    extraBrief: (document.querySelector("#extraBrief")?.value || "").trim()
-  };
-
-  // Solo devolvemos el brief si contiene algo de información útil.
-  const hasContent = Object.values(brief).some((v) =>
-    Array.isArray(v) ? v.length > 0 : Boolean(v)
-  );
-  return hasContent ? brief : null;
-}
-
-/**
- * Puebla el formulario del brief desde un objeto (ej. run del historial).
- * @param {object|null} [brief]
- */
-function populateClientBrief(brief) {
-  document.querySelector("#brandName").value = brief?.brandName || "";
-  // niche se puebla aparte en loadHistoryRun, pero toleramos que venga aquí.
-  if (brief?.niche && !document.querySelector("#niche").value) {
-    document.querySelector("#niche").value = brief.niche;
-  }
-  document.querySelector("#audience").value = brief?.audience || "";
-  document.querySelector("#tone").value = brief?.tone || "";
-  document.querySelector("#extraBrief").value = brief?.extraBrief || "";
-
-  if (sectionsList) sectionsList.innerHTML = "";
-  for (const s of brief?.sections || []) {
-    addSection(s);
+// ---------- almacenamiento local ----------
+// El servidor gratuito no tiene disco: los kits se guardan también en este dispositivo
+// para poder seguir midiendo aunque el servidor se haya reiniciado.
+const STORE_KEY = "webadn:kits";
+const MAX_LOCAL = 4;
+const readLocal = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch { return []; } };
+function saveLocal(entry) {
+  let list = [entry, ...readLocal().filter((k) => k.run !== entry.run)].slice(0, MAX_LOCAL);
+  while (list.length) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); return; } catch { list = list.slice(0, -1); }
   }
 }
 
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ---------- utilidades de interfaz ----------
+let toastTimer;
+function toast(message) {
+  const el = $("#toast");
+  el.textContent = message;
+  el.classList.add("is-on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("is-on"), 2600);
 }
 
-let lastResponse = null;
-// El prompt a mostrar es el del kit (medido); el brief clásico queda como respaldo.
-const promptOf = (data) => data?.kit?.prompt || data?.prompt || "";
-const runNameOf = (data) => data?.kit?.run || (data?.artifactPath ? data.artifactPath.split(/[/\\]/).pop() : "");
-// Una animación por elemento: antes todas las métricas compartían un único ID
-// global, de modo que animate() cancelaba la animación de otra métrica al
-// arrancar la suya. settleMetrics() encadenaba 3 animate() y la animación de
-// fidelity quedaba cancelada antes de renderizar, dejando el badge congelado
-// en el último valor de pre-animación (76 % del paso "metrics"). Cada elemento
-// gestiona ahora su propio requestAnimationFrame.
-const metricAnimByEl = new WeakMap();
-let currentMetrics = { tech: 0, fidelity: 0, prompt: 0 };
-
-const stepProgress = {
-  queued: 2, "prepare-page": 5, navigate: 8, "intro-capture": 12,
-  "page-data": 18, sections: 24, assets: 28, "css-features": 32,
-  styles: 36, "js-tokens": 40, webgl: 44, "webgl-time": 48,
-  structure: 52, screenshots: 58, motion: 64, hover: 70,
-  metrics: 76, download: 82, prompt: 88, "prompt-done": 94
-};
-
-function animate(el, from, to, suffix, duration) {
-  // Solo cancela la animación previa de ESTE elemento, no la de otros badges.
-  const prev = metricAnimByEl.get(el);
-  if (prev) cancelAnimationFrame(prev);
-  metricAnimByEl.delete(el);
-  if (from === to) { el.textContent = `${to}${suffix}`; return; }
-  const start = performance.now();
-  el.classList.add("metrics-pop");
-  setTimeout(() => el.classList.remove("metrics-pop"), 400);
-  function frame(now) {
-    const t = Math.min((now - start) / duration, 1);
-    const eased = 1 - Math.pow(1 - t, 3);
-    const v = Math.round(from + (to - from) * eased);
-    el.textContent = `${v}${suffix}`;
-    if (t < 1) {
-      metricAnimByEl.set(el, requestAnimationFrame(frame));
-    } else {
-      metricAnimByEl.delete(el);
-    }
-  }
-  metricAnimByEl.set(el, requestAnimationFrame(frame));
-}
-
-function resetMetrics() {
-  currentMetrics = { tech: 0, fidelity: 0, prompt: 0 };
-  techCount.textContent = "0";
-  fidelityScore.textContent = "-";
-  promptSize.textContent = "0kb";
-}
-
-function advanceMetrics(step) {
-  const pct = stepProgress[step];
-  if (pct === undefined) return;
-  const fTarget = Math.max(currentMetrics.fidelity, pct);
-  animate(fidelityScore, currentMetrics.fidelity, fTarget, "%", 350);
-  currentMetrics.fidelity = fTarget;
-  const tTarget = Math.min(Math.round(pct * 0.15), 14);
-  if (tTarget !== currentMetrics.tech) {
-    animate(techCount, currentMetrics.tech, tTarget, "", 300);
-    currentMetrics.tech = tTarget;
-  }
-  const pTarget = Math.max(1, Math.round(pct * 0.4));
-  if (pTarget !== currentMetrics.prompt) {
-    animate(promptSize, currentMetrics.prompt, pTarget, "kb", 300);
-    currentMetrics.prompt = pTarget;
-  }
-}
-
-function settleMetrics(finalTech, finalFidelity, finalPromptKb) {
-  animate(techCount, currentMetrics.tech, finalTech, "", 600);
-  animate(fidelityScore, currentMetrics.fidelity, finalFidelity, "%", 800);
-  animate(promptSize, currentMetrics.prompt, finalPromptKb, "kb", 600);
-  currentMetrics = { tech: finalTech, fidelity: finalFidelity, prompt: finalPromptKb };
-}
-
-// ---------------------------------------------------------------------------
-// scannerView — animación ASCII "radar/scanner" que ocupa #outputPrompt durante
-// la extracción. Reemplaza el texto de estado plano que antes se duplicaba con
-// el header (#statusText). El nombre del paso sigue apareciendo en el header;
-// aquí se muestra el progreso como una barra ASCII + un sweep radial animado.
-// Patrón de bucle: requestAnimationFrame con handle cancelable, como animate().
-// Respeta prefers-reduced-motion pintando un solo frame estático.
-// ---------------------------------------------------------------------------
-const outputPromptEl = document.querySelector("#outputPrompt");
-
-const scannerView = (() => {
-  const GRID_H = 11;            // alto interior de la rejilla
-  const FRAME_MS = 90;          // ~11 fps; suave y barato
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  let rafId = null;
-  let lastTick = 0;
-  let angle = -Math.PI / 2;   // el sweep arranca apuntando arriba
-  let pulse = 0;              // para el eco expansivo del núcleo
-  let currentStep = "queued";
-  let currentPct = stepProgress["queued"] || 2;
-  let running = false;
-
-  // Mapa "step -> etiqueta corta" para el pie del frame.
-  const STEP_LABEL = {
-    queued: "queue", navigate: "navigate", "intro-capture": "intro",
-    "prepare-page": "prep", "page-data": "page", sections: "sections",
-    assets: "assets", "css-features": "css", styles: "styles",
-    "js-tokens": "js", webgl: "webgl", "webgl-time": "webgl-t",
-    structure: "structure", screenshots: "scans", motion: "motion",
-    hover: "hover", metrics: "metrics", download: "download",
-    "auto-preset": "preset", "pixel-color": "palette",
-    "llm-interpret": "ia-vision", prompt: "prompt", "prompt-done": "ready",
-    cache: "cache", "cache-error": "cache",
-  };
-
-  function buildGrid(cx, cy, width) {
-    const rows = [];
-    for (let y = 0; y < GRID_H; y++) {
-      let line = "";
-      for (let x = 0; x < width; x++) {
-        const dx = x - cx;
-        const dy = y - cy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        // Hueco cuadrado en el centro para la etiqueta "ADN".
-        if (Math.abs(dx) <= 2 && Math.abs(dy) <= 0) { line += " "; continue; }
-        // Marcadores de anillos concéntricos tenues.
-        if (Math.round(dist) === 3 || Math.round(dist) === 6 || Math.round(dist) === 9) {
-          line += "·";
-          continue;
-        }
-        // Sweep radial: glifo barrido si su ángulo está cerca del sweep actual.
-        const cellAngle = Math.atan2(dy, dx);
-        let diff = cellAngle - angle;
-        while (diff > Math.PI) diff -= 2 * Math.PI;
-        while (diff < -Math.PI) diff += 2 * Math.PI;
-        if (Math.abs(diff) < 0.30) {
-          line += dist < 4 ? "▓" : "▒";
-          continue;
-        }
-        if (Math.abs(diff) < 0.55) {
-          line += "░";
-          continue;
-        }
-        line += " ";
-      }
-      rows.push(line);
-    }
-    return rows;
-  }
-
-  function progressBar(pct) {
-    const total = 22;
-    const filled = Math.max(0, Math.min(total, Math.round((pct / 100) * total)));
-    return "▰".repeat(filled) + "▱".repeat(total - filled);
-  }
-
-  // Rellena/pada una línea (sin bordes) hasta exactamente width glifos.
-  function padTo(str, width) {
-    if (str.length === width) return str;
-    if (str.length > width) return str.slice(0, width);
-    return str + " ".repeat(width - str.length);
-  }
-
-  function render() {
-    // El footer (barra + % + label) define el ancho interior: todas las líneas
-    // se ajustan a ese ancho para que la caja sea siempre rectangular.
-    const pctStr = String(currentPct).padStart(3, " ");
-    const label = (STEP_LABEL[currentStep] || currentStep).padEnd(10, " ").slice(0, 10);
-    const bar = progressBar(currentPct);
-    const footInner = ` ${bar} ${pctStr}% · ${label} `;
-    const innerW = footInner.length;
-
-    // Reconstruye la rejilla con el nuevo ancho, centrando el núcleo.
-    const gx = (innerW - 1) / 2;
-    const gy = (GRID_H - 1) / 2;
-    const grid = buildGrid(gx, gy, innerW);
-    const mid = Math.floor(GRID_H / 2);
-    const core = "ADN";
-    const coreStart = Math.floor((innerW - core.length) / 2);
-    grid[mid] = padTo(grid[mid], innerW);
-    grid[mid] = grid[mid].slice(0, coreStart) + core + grid[mid].slice(coreStart + core.length);
-
-    const top = "╭" + "─".repeat(innerW) + "╮";
-    const bot = "╰" + "─".repeat(innerW) + "╯";
-    const side = "│";
-    const coreFlick = pulse < 0.5 ? "●" : "◉";
-
-    const body = grid.map((line, i) => {
-      const inner = padTo(line, innerW);
-      if (i === mid) {
-        // Fila media: pulso del sensor en los laterales del marco.
-        return "◆" + inner + coreFlick;
-      }
-      return side + inner + side;
-    });
-
-    const foot = side + footInner + side;
-    const padTop = Math.max(0, Math.floor((12 - GRID_H) / 2));
-    const lines = [top, ...body, foot, bot];
-    const block = "\n".repeat(padTop) + lines.join("\n") + "\n";
-    outputPromptEl.textContent = block;
-    outputPromptEl.classList.add("pre--scanning");
-  }
-
-  function tick(now) {
-    if (!running) return;
-    if (now - lastTick >= FRAME_MS) {
-      lastTick = now;
-      angle += 0.34;       // velocidad de rotación del sweep
-      pulse = (pulse + 0.08) % 1;
-      render();
-    }
-    rafId = requestAnimationFrame(tick);
-  }
-
-  function start() {
-    outputPromptEl.classList.add("pre--scanning");
-    if (reduceMotion) { running = true; render(); return; }
-    if (running) return;
-    running = true;
-    lastTick = 0;
-    rafId = requestAnimationFrame(tick);
-  }
-
-  function stop() {
-    running = false;
-    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-    outputPromptEl.classList.remove("pre--scanning");
-  }
-
-  function setStep(step) {
-    currentStep = step;
-    if (stepProgress[step] !== undefined) currentPct = stepProgress[step];
-    if (!running) return;
-    if (reduceMotion) render();
-  }
-
-  return { start, stop, setStep };
-})();
-
-// Cargar historial al arrancar la aplicación
-window.addEventListener("DOMContentLoaded", () => {
-  loadHistory();
-
-  // Inicializar lista dinámica de secciones (datalog suggestions + 1 fila por defecto)
-  if (addSectionBtn) {
-    addSectionBtn.addEventListener("click", () => addSection());
-    // Sembrar 2 filas iniciales comunes para guiar al usuario.
-    addSection({ name: "Hero" });
-    addSection({ name: "Servicios" });
-  }
-});
-
-async function loadHistory() {
-  try {
-    const res = await fetch("/api/runs");
-    if (!res.ok) return;
-    const runs = await res.json();
-    
-    if (runs.length === 0) {
-      runList.innerHTML = `<p style="color:var(--text-muted);">No runs in history.</p>`;
-      return;
-    }
-
-    runList.innerHTML = runs.map(run => `
-      <div class="run-item">
-        <div style="display:flex; flex-direction:column; gap:4px;">
-          <span style="font-weight: 600; font-family: var(--font-mono); color: var(--text);">${esc(run.domain)}</span>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">${esc(run.niche)} &bull; ${new Date(run.date).toLocaleString()}</span>
-          <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">${esc(run.technologies.join(", "))}</span>
-        </div>
-        <div style="display:flex; gap:12px; align-items:center;">
-          <span style="background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-weight: 500; font-size: 0.8rem;">Cobertura: ${esc(String(run.fidelityScore))}%</span>
-          <button class="copy-button" data-run-path="${esc(run.path)}" style="cursor:pointer; padding: 6px 12px; font-size: 0.8rem;">Cargar</button>
-        </div>
-      </div>
-    `).join("");
-
-    runList.querySelectorAll("[data-run-path]").forEach(btn => {
-      btn.addEventListener("click", () => loadHistoryRun(btn.dataset.runPath));
-    });
-  } catch (err) {
-    console.error("Error al cargar historial:", err);
-  }
-}
-
-// Inyectar en window para hacerlo accesible a través de onclick en los templates inline
-window.loadHistoryRun = async function(runPath) {
-  setStatus("Cargando run...");
-  try {
-    const res = await fetch("/api/runs");
-    if (!res.ok) return;
-    const runs = await res.json();
-    const targetRun = runs.find(r => r.path === runPath);
-    if (!targetRun) return;
-
-    // Poblar formulario
-    document.querySelector("#url").value = targetRun.url;
-    document.querySelector("#niche").value = targetRun.niche;
-
-    // Leer el resultado guardado (sin volver a navegar la referencia).
-    setActiveTab("prompt");
-    document.querySelector("#outputPrompt").textContent = "Cargando run guardado...";
-    setRunning(true);
-
-    const response = await fetch(`/api/run?run=${encodeURIComponent(runPath)}`);
-    if (!response.ok) throw new Error("Fallo al cargar run");
-    const parsed = await response.json();
-
-    lastResponse = parsed;
-    document.querySelector("#outputPrompt").textContent = promptOf(parsed);
-    loadCompares(runNameOf(parsed));
-    populateEvidenceTabs(parsed.evidence);
-    // Restaurar el brief del cliente desde el run cargado (si existe).
-    if (parsed.evidence?.clientBrief) {
-      populateClientBrief(parsed.evidence.clientBrief);
-    }
-    const ft = parsed.evidence?.inspection?.technologies?.length || 0;
-    const ff = parsed.fidelityScore?.overall || 0;
-    const pk = Math.max(1, Math.round(new Blob([promptOf(parsed)]).size / 1024));
-    settleMetrics(ft, ff, pk);
-    artifactPath.textContent = `Cargado: ${parsed.artifactPath}`;
-    renderScreenshotsGrid(parsed.evidence, parsed.artifactPath);
-    setStatus("Cargado");
-  } catch (err) {
-    setStatus("Error al cargar");
-    console.error(err);
-  } finally {
-    setRunning(false);
-  }
-};
-
-function renderScreenshotsGrid(evidence, runPath) {
-  const visualEvidence = evidence?.inspection?.visualEvidence || [];
-  const runName = runPath.split(/[/\\]/).pop();
-
-  if (visualEvidence.length === 0) {
-    screenshotGrid.innerHTML = `<p style="color:var(--text-muted); grid-column:1/-1;">No screenshots captured yet.</p>`;
-    return;
-  }
-
-  screenshotGrid.innerHTML = visualEvidence.map(ev => `
-    <div style="border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; background:var(--surface);">
-      <img src="/api/screenshots?run=${encodeURIComponent(runName)}&file=${encodeURIComponent(ev.screenshotName)}" style="width:100%; height:auto; object-fit:contain; border-bottom:1px solid var(--border);" alt="${ev.viewport}">
-      <div style="padding:8px; font-family:var(--font-mono); font-size:0.75rem; text-align:center; color:var(--text);">
-        <strong>${ev.viewport.toUpperCase()}</strong> (${ev.scrollPercent}%)
-      </div>
-    </div>
-  `).join("");
-}
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  setRunning(true);
-
-  const payload = {
-    url: document.querySelector("#url").value,
-    niche: document.querySelector("#niche").value,
-    preset: document.querySelector("#preset").value,
-    ignoreRobots: document.querySelector("[name=ignoreRobots]").checked,
-    clientBrief: collectClientBrief(),
-    force: true
-  };
-
-  setActiveTab("prompt");
-  scannerView.start();
-  scannerView.setStep("queued");
-  document.querySelector("#outputSections").textContent = "Esperando datos...";
-  document.querySelector("#outputStyles").textContent = "Esperando datos...";
-  document.querySelector("#outputMotion").textContent = "Esperando datos...";
-  document.querySelector("#outputAssets").textContent = "Esperando datos...";
-  document.querySelector("#outputRisks").textContent = "Esperando datos...";
-  screenshotGrid.innerHTML = `<p style="color:var(--text-muted); grid-column:1/-1; font-family:var(--font-sans);">Capturando viewports en background...</p>`;
-
-  const statusMap = {
-    "page-data": "Extrayendo datos de página...",
-    "sections": "Mapeando secciones...",
-    "assets": "Extrayendo assets...",
-    "css-features": "Analizando features CSS...",
-    "styles": "Extrayendo estilos...",
-    "webgl": "Inspeccionando WebGL...",
-    "structure": "Extrayendo estructura...",
-    "screenshots": "Capturando viewports...",
-    "motion": "Muestreando animaciones...",
-    "hover": "Analizando hovers...",
-    "download": "Descargando assets..."
-  };
-
-  try {
-    const response = await fetch("/api/extract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: "Extracción fallida" }));
-      throw new Error(err.error);
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let eventType = null;
-    let eventData = "";
-
-    const flush = () => {
-      if (eventType && eventData) {
-        let parsed;
-        try { parsed = JSON.parse(eventData); }
-        catch (e) { console.error("SSE JSON parse fail", e, eventData.slice(0, 200)); eventType = null; eventData = ""; return; }
-        handleEvent(eventType, parsed);
-      }
-      eventType = null;
-      eventData = "";
-    };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) { flush(); break; }
-      buffer += decoder.decode(value, { stream: true });
-
-      let nl;
-      while ((nl = buffer.indexOf("\n")) !== -1) {
-        const line = buffer.slice(0, nl);
-        buffer = buffer.slice(nl + 1);
-
-        if (line === "") {
-          flush();
-        } else if (line.startsWith("event: ")) {
-          eventType = line.slice(7).trim();
-        } else if (line.startsWith("data: ")) {
-          eventData = eventData ? eventData + "\n" + line.slice(6) : line.slice(6);
-        }
-      }
-    }
-
-    function handleEvent(type, data) {
-      if (type === "progress") {
-        const msg = statusMap[data.step] || data.message;
-        // El texto del paso va al header (#statusText). En #outputPrompt corre
-        // la animación scannerView, que absorbe el paso para su barra de progreso.
-        scannerView.setStep(data.step);
-        setStatus(msg);
-        advanceMetrics(data.step);
-        return;
-      }
-
-      if (type === "error") {
-        scannerView.stop();
-        throw new Error(data.message);
-      }
-
-      if (type === "result") {
-        scannerView.stop();
-        lastResponse = data;
-        document.querySelector("#outputPrompt").textContent = promptOf(data);
-        renderReport(null);
-        populateEvidenceTabs(data.evidence);
-
-        if (data.artifactPath) {
-          artifactPath.textContent = `Guardado: ${data.artifactPath}`;
-        }
-
-        const ft = data.evidence?.inspection?.technologies?.length || 0;
-        const ff = data.fidelityScore?.overall || 0;
-        const pk = Math.max(1, Math.round(new Blob([promptOf(data)]).size / 1024));
-        settleMetrics(ft, ff, pk);
-
-        renderScreenshotsGrid(data.evidence, data.artifactPath);
-        loadHistory();
-        setStatus("Completado");
-      }
-    }
-  } catch (error) {
-    scannerView.stop();
-    document.querySelector("#outputPrompt").textContent = error.message;
-    setStatus("Error");
-  } finally {
-    setRunning(false);
-  }
-});
-
-function populateEvidenceTabs(evidence) {
-  if (!evidence) return;
-
-  const insp = evidence.inspection || {};
-
-  const sections = insp.sections || [];
-  document.querySelector("#outputSections").textContent = sections.length
-    ? JSON.stringify(sections.map((s) => ({
-        index: s.index,
-        role: s.role,
-        confidence: s.confidence,
-        height: s.height,
-        fullViewport: s.isFullViewport,
-        headings: s.textHierarchy?.map((h) => h.text),
-        ctas: s.ctaText
-      })), null, 2)
-    : "No section map available.";
-
-  const motion = insp.motionRecipes || [];
-  document.querySelector("#outputMotion").textContent = motion.length
-    ? JSON.stringify(motion, null, 2)
-    : "No motion recipes detected.";
-
-  const assets = insp.assets;
-  document.querySelector("#outputAssets").textContent = assets
-    ? JSON.stringify({
-        images: assets.images?.length || 0,
-        videos: assets.videos?.length || 0,
-        fonts: assets.fonts?.length || 0,
-        scripts: assets.scripts?.length || 0,
-        inlineSvgs: assets.inlineSvgCount,
-        canvases: assets.canvasCount,
-        heavyAssets: assets.suspiciousHeavyAssets?.length || 0
-      }, null, 2)
-    : "No asset manifest available.";
-
-  const styles = insp.styles;
-  document.querySelector("#outputStyles").textContent = styles
-    ? formatStyles(styles)
-    : "No style data extracted.";
-
-  const risks = insp.risks || [];
-  const webglRisks = insp.webgl?.performanceRisk?.risks || [];
-  const allRisks = [...risks, ...webglRisks];
-  document.querySelector("#outputRisks").textContent = allRisks.length
-    ? allRisks.map((r) => `- ${r}`).join("\n")
-    : "No risks detected.";
-}
-
-function formatStyles(styles) {
-  const parts = [];
-  parts.push(`/* Total CSS rules: ${styles.totalRuleCount} */`);
-  parts.push(`/* External sheets: ${(styles.externalSheets || []).length} */\n`);
-
-  if (styles.cssVariableMap && Object.keys(styles.cssVariableMap).length) {
-    parts.push("/* CSS Variables */");
-    for (const [key, val] of Object.entries(styles.cssVariableMap)) {
-      parts.push(`${key}: ${val};`);
-    }
-    parts.push("");
-  }
-
-  if (styles.keyframes && styles.keyframes.length) {
-    parts.push("/* @keyframes */");
-    for (const kf of styles.keyframes) {
-      parts.push(kf.css);
-    }
-    parts.push("");
-  }
-
-  if (styles.fontFaces && styles.fontFaces.length) {
-    parts.push("/* @font-face */");
-    for (const ff of styles.fontFaces) {
-      parts.push(ff.css);
-    }
-    parts.push("");
-  }
-
-  if (styles.mediaQueries && styles.mediaQueries.length) {
-    parts.push("/* @media */");
-    for (const mq of styles.mediaQueries) {
-      parts.push(mq.css);
-    }
-    parts.push("");
-  }
-
-  parts.push("/* Selector Rules (first 100) */");
-  const rules = (styles.styleRules || []).slice(0, 100);
-  for (const rule of rules) {
-    parts.push(rule.css);
-  }
-  if (styles.styleRules && styles.styleRules.length > 100) {
-    parts.push(`/* ... and ${styles.styleRules.length - 100} more rules */`);
-  }
-
-  return parts.join("\n");
-}
-
-tabBar.addEventListener("click", (event) => {
-  const tab = event.target.closest(".tab");
-  if (!tab) return;
-  setActiveTab(tab.dataset.tab);
-});
-
-function setActiveTab(name) {
-  tabBar.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
-  document.querySelectorAll(".tab-pane").forEach((p) => p.classList.toggle("active", p.id === `output${name.charAt(0).toUpperCase() + name.slice(1)}`));
-}
-
-copyButton.addEventListener("click", async () => {
-  const prompt = document.querySelector("#outputPrompt").textContent;
-  await copyText(prompt);
-  const original = copyButton.textContent;
-  copyButton.textContent = "Copied";
-  setTimeout(() => {
-    copyButton.textContent = original;
-  }, 1200);
-});
-
-downloadPrompt.addEventListener("click", () => {
-  if (!lastResponse) return;
-  downloadFile("PROMPT.md", promptOf(lastResponse), "text/markdown");
-});
-
-downloadEvidence.addEventListener("click", () => {
-  if (!lastResponse) return;
-  downloadFile("evidence.json", JSON.stringify(lastResponse.evidence, null, 2), "application/json");
-});
-
-exportToAIStudio.addEventListener("click", async () => {
-  if (!lastResponse) return;
-
-  const brief = collectClientBrief();
-  const niche = brief?.niche || document.querySelector("#niche").value || "sitio web profesional";
-  const promptContent = lastResponse.prompt;
-
-  // Bloque de contexto del proyecto construido a partir del brief del usuario.
-  const contextLines = [`- Nicho/Tipo de negocio: ${niche}`];
-  if (brief?.brandName) contextLines.push(`- Marca/Proyecto: ${brief.brandName}`);
-  if (brief?.audience) contextLines.push(`- Audiencia objetivo: ${brief.audience}`);
-  if (brief?.tone) contextLines.push(`- Tono de voz: ${brief.tone}`);
-  if (brief?.sections?.length) {
-    const secs = brief.sections.map((s) => `  • ${s.name}${s.copy ? ` — ${s.copy}` : ""}`).join("\n");
-    contextLines.push(`- Secciones del sitio:\n${secs}`);
-  }
-
-  const briefNote = brief?.extraBrief
-    ? `\n**NOTAS ADICIONALES DEL CLIENTE:**\n${brief.extraBrief}\n`
-    : "";
-
-  // Crear un prompt en lenguaje natural estructurado para Google AI Studio
-  const aiStudioPrompt = `Crea el sitio web o landing page que aparece en el código adjunto.
-
-**CONTEXTO DEL PROYECTO:**
-${contextLines.join("\n")}
-- Debe ser completamente responsivo para todos los dispositivos (móvil, tablet, desktop)
-${briefNote}
-**INSTRUCCIONES:**
-Analiza el siguiente mega-prompt técnico que contiene toda la información extraída de un sitio web de referencia. Utiliza esta información para recrear un sitio web con la misma estructura, diseño, estilos, animaciones y funcionalidades. Prioriza los requisitos del cliente expresados arriba cuando entren en conflicto con la referencia.
-
----
-
-${promptContent}
-
----
-
-**REQUISITOS TÉCNICOS:**
-1. El sitio debe ser 100% responsivo y funcionar perfectamente en todos los dispositivos
-2. Mantén la fidelidad visual y estructural del sitio original
-3. Implementa todas las animaciones y efectos de motion descritos
-4. Asegúrate de que la tipografía, colores y spacing sean consistentes
-5. El código debe ser limpio, semántico y optimizado para SEO
-6. Respeta estrictamente la estructura de secciones y la copy provista en el contexto del proyecto
-
-Genera el código completo del sitio web basándote en esta especificación técnica.`;
-
-  // AI Studio no tiene deep-link oficial para precargar prompts, así que
-  // abrimos la app base (/app/apps) y copiamos el prompt al portapapeles.
-  // El usuario solo tiene que pegar (Ctrl+V) en el editor que elija.
-  const aiStudioUrl = "https://aistudio.google.com/app/apps";
-
-  // Copiar el prompt al portapapeles antes de abrir, para que esté listo
-  // cuando el usuario llegue a la app. Manejamos fallos de permisos/HTTPS.
-  let clipboardOk = false;
-  try {
-    await navigator.clipboard.writeText(aiStudioPrompt);
-    clipboardOk = true;
-  } catch (err) {
-    clipboardOk = false;
-  }
-
-  // Abrir en una nueva pestaña. window.open devuelve null si el popup
-  // fue bloqueado (o el navegador no permite window.open desde un handler
-  // asíncrono tras un await); en ese caso avisamos al usuario.
-  const popup = window.open(aiStudioUrl, "_blank");
-
-  // Feedback visual al usuario (honesto según el resultado)
-  const originalText = exportToAIStudio.textContent;
-  let feedbackText;
-  if (popup && clipboardOk) {
-    feedbackText = "✓ Abierto — pega con Ctrl+V";
-  } else if (popup && !clipboardOk) {
-    feedbackText = "✓ Abierto (portapapeles falló: copia manual)";
-  } else if (!popup && clipboardOk) {
-    feedbackText = "Popup bloqueado — ve a aistudio.google.com y pega con Ctrl+V";
-  } else {
-    feedbackText = "Popup bloqueado y portapapeles falló — copia el prompt a mano";
-  }
-  exportToAIStudio.textContent = feedbackText;
-  setTimeout(() => {
-    exportToAIStudio.textContent = originalText;
-  }, 3500);
-});
-
-function downloadFile(name, content, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// --- Copiar con respaldo: navigator.clipboard no existe fuera de HTTPS/localhost
-// (p. ej. abriendo el dashboard desde el móvil por la IP de la red local).
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -840,242 +52,327 @@ async function copyText(text) {
   }
 }
 
-// --- Kit descargable -------------------------------------------------------
-const downloadKit = document.querySelector("#downloadKit");
-downloadKit.addEventListener("click", () => {
-  const run = runNameOf(lastResponse);
-  if (!run) { setStatus("Primero extrae una referencia"); return; }
-  if (!lastResponse?.kit) { setStatus("Este run no tiene kit: vuelve a extraerlo"); return; }
-  window.location.href = `/api/kit?run=${encodeURIComponent(run)}`;
+function downloadBlob(name, blob) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function setView(name) {
+  $$(".view").forEach((v) => v.classList.toggle("is-active", v.id === `view-${name}`));
+  $$(".step").forEach((s) => s.classList.toggle("is-active", s.dataset.view === name));
+  window.scrollTo({ top: 0 });
+}
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-view]");
+  if (target) setView(target.dataset.view);
 });
 
-// --- Medir build -----------------------------------------------------------
-const verifyForm = document.querySelector("#verifyForm");
-const verifyButton = document.querySelector("#verifyButton");
-const verifyStatus = document.querySelector("#verifyStatus");
-const verifyReport = document.querySelector("#verifyReport");
-const verifyHint = document.querySelector("#verifyHint");
-let lastReport = null;
-let dimensionLabels = {};
+/** POST con respuesta SSE: llama a onEvent(tipo, datos) por cada evento. */
+async function postStream(path, body, onEvent) {
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (response.status === 401) { location.href = "/login"; throw new Error("Sesión caducada."); }
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Error ${response.status}`);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      const type = (block.match(/^event: (.+)$/m) || [])[1];
+      const raw = block.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("\n");
+      if (type && raw) onEvent(type, JSON.parse(raw));
+    }
+  }
+}
 
+/** Barra de progreso que avanza sola y se acerca al final sin llegar. */
+function progressUI(prefix) {
+  const wrap = $(`#${prefix}Progress`), bar = $(`#${prefix}Bar`), status = $(`#${prefix}Status`), button = $(`#${prefix}Button`);
+  let timer, pct = 0;
+  return {
+    start(message) {
+      pct = 4; bar.style.width = "4%"; wrap.hidden = false; button.disabled = true; status.textContent = message;
+      timer = setInterval(() => { pct += (92 - pct) * 0.035; bar.style.width = `${pct}%`; }, 1000);
+    },
+    say(message) { if (message) status.textContent = message; },
+    stop(message = "") {
+      clearInterval(timer); button.disabled = false; bar.style.width = "100%"; status.textContent = message;
+      if (!message) wrap.hidden = true;
+    },
+  };
+}
+
+// ---------- 1 · Extraer ----------
+const extractProgress = progressUI("extract");
+
+$("#extractForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  extractProgress.start("Despertando el navegador de medición…");
+  let result = null;
+  try {
+    await postStream("/api/extract", {
+      url: data.get("url"), niche: data.get("niche"), notes: data.get("notes") || "",
+      force: data.get("force") === "on", ignoreRobots: data.get("ignoreRobots") === "on",
+    }, (type, payload) => {
+      if (type === "progress") extractProgress.say(payload.message);
+      if (type === "error") throw new Error(payload.message);
+      if (type === "result") result = payload;
+    });
+    if (!result) throw new Error("El servidor cortó la conexión (puede haberse quedado sin memoria). Inténtalo de nuevo.");
+    extractProgress.stop();
+    useKit(result, { save: true });
+    setView("kit");
+  } catch (error) {
+    extractProgress.stop(`No se pudo extraer: ${error.message}`);
+  }
+});
+
+async function loadRecents() {
+  let server = [];
+  try {
+    const res = await fetch("/api/runs");
+    if (res.ok) server = await res.json();
+  } catch { /* sin conexión: solo los locales */ }
+  const local = readLocal();
+  const byRun = new Map();
+  for (const k of local) byRun.set(k.run, { run: k.run, url: k.url, niche: k.niche, date: k.generatedAt, local: true });
+  for (const r of server) if (!byRun.has(r.path)) byRun.set(r.path, { run: r.path, url: r.url, niche: r.niche, date: r.date });
+  const items = [...byRun.values()].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 8);
+  $("#recentSheet").hidden = items.length === 0;
+  $("#recentList").innerHTML = items.map((it) => `
+    <li><button class="row" type="button" data-run="${esc(it.run)}">
+      <span><b>${esc(hostOf(it.url))}</b><small>${esc(it.niche || "")}</small></span>
+      <span class="tag">${esc(fmtDate(it.date))}</span>
+    </button></li>`).join("");
+}
+
+$("#recentList").addEventListener("click", async (event) => {
+  const row = event.target.closest("[data-run]");
+  if (!row) return;
+  const run = row.dataset.run;
+  let entry = readLocal().find((k) => k.run === run);
+  if (!entry) {
+    try {
+      const res = await fetch(`/api/run?run=${encodeURIComponent(run)}`);
+      if (!res.ok) throw new Error();
+      entry = await res.json();
+    } catch {
+      toast("Ese kit ya no está en el servidor");
+      return;
+    }
+  }
+  useKit(entry, { save: true });
+  setView("kit");
+});
+
+// ---------- 2 · Kit ----------
+function useKit(entry, { save = false } = {}) {
+  kit = entry;
+  lastReport = null;
+  sectionIndex = 0;
+  sectionViewport = "desktop";
+  if (save) saveLocal(entry);
+  renderKit();
+  $("#report").innerHTML = "";
+  loadRecents();
+}
+
+function renderKit() {
+  const has = Boolean(kit);
+  $("#kitEmpty").hidden = has;
+  $("#kitBody").hidden = !has;
+  $("#kitActions").hidden = !has;
+  $("#measureEmpty").hidden = has;
+  $("#measureBody").hidden = !has;
+  if (!has) { $("#kitTitle").textContent = "Kit"; return; }
+
+  const fp = kit.fingerprint || {};
+  const d = fp.viewports?.desktop || Object.values(fp.viewports || {})[0] || {};
+  const m = d.motion?.summary || {};
+  const roles = d.type?.roles || {};
+  const fonts = [...new Set(Object.values(roles).map((r) => r.family).filter(Boolean))];
+  const colors = [d.color?.pageBg, ...(d.color?.texts || []).map((c) => c.value), ...(d.color?.accents || []).map((c) => c.value), ...(d.color?.backgrounds || []).map((c) => c.value)];
+  const palette = [...new Set(colors.filter(Boolean))].slice(0, 6);
+  const moves = (m.reveals || 0) + (m.scrubs || 0) + (m.pins || 0) + (m.loops || 0);
+
+  $("#kitTitle").textContent = hostOf(kit.url);
+  $("#kitLead").textContent = `Adaptado a «${kit.niche}». Copia el prompt, pégalo en tu IA y, cuando tengas el sitio publicado, mídelo.`;
+  $("#kitStats").innerHTML = `
+    <div class="stat"><span>Secciones</span><strong>${(d.sections || []).length}</strong><em>${Object.keys(fp.viewports || {}).length === 2 ? "escritorio y móvil" : esc(Object.keys(fp.viewports || {}).join(", "))}</em></div>
+    <div class="stat"><span>Animaciones</span><strong>${moves}</strong><em>${m.reveals || 0} entradas · ${(m.scrubs || 0) + (m.pins || 0)} de scroll · ${m.loops || 0} bucles</em></div>
+    <div class="stat"><span>Ritmo</span><strong>${m.revealDuration ? `${Math.round(m.revealDuration)}<small>ms</small>` : "—"}</strong><em>${esc(m.easing || "sin entradas medidas")}</em></div>
+    <div class="stat"><span>Paleta y fuentes</span><div class="swatches">${palette.map((c) => `<i style="background:${safeColor(c)}" title="${esc(c)}"></i>`).join("")}</div><em>${esc(fonts.slice(0, 3).join(" · ") || "—")}</em></div>`;
+  $("#promptText").textContent = kit.prompt || "";
+  renderSections();
+}
+
+function renderSections() {
+  const fp = kit.fingerprint || {};
+  const names = Object.keys(fp.viewports || {});
+  if (!names.includes(sectionViewport)) sectionViewport = names[0];
+  const sections = fp.viewports?.[sectionViewport]?.sections || [];
+  sectionIndex = Math.min(sectionIndex, Math.max(0, sections.length - 1));
+  const list = $("#sectionList");
+  list.classList.add("is-scroller");
+  list.innerHTML = sections.map((s, i) => `
+    <li><button class="row ${i === sectionIndex ? "is-active" : ""}" type="button" data-section="${i}">
+      <span><b>#${i + 1} ${esc(s.role || "sección")}</b><small>${esc(s.headings?.[0]?.text || s.desc || "")}</small></span>
+      <span class="tag">${s.hVh ? `${s.hVh}× pantalla` : ""}</span>
+    </button></li>`).join("");
+
+  const s = sections[sectionIndex];
+  const detail = $("#sectionDetail");
+  if (!s) { detail.innerHTML = `<p>Sin secciones medidas.</p>`; return; }
+  detail.innerHTML = `
+    ${names.length > 1 ? `<div class="seg">${names.map((n) => `<button type="button" data-viewport="${esc(n)}" class="${n === sectionViewport ? "is-active" : ""}">${n === "desktop" ? "Escritorio" : n === "mobile" ? "Móvil" : esc(n)}</button>`).join("")}</div>` : ""}
+    <h3>#${sectionIndex + 1} ${esc(s.role || "sección")}</h3>
+    <p>${esc(s.desc || "")}</p>
+    ${s.shot ? `<img class="shot" alt="Captura de la sección ${sectionIndex + 1}" src="${shotUrl(kit.run, s.shot)}" />` : ""}
+    <div class="facts">
+      <div class="fact"><span>Altura</span><b>${s.hVh ?? "—"}× pantalla</b></div>
+      <div class="fact"><span>Columnas</span><b>${s.cols ?? "—"}</b></div>
+      <div class="fact"><span>Texto mayor</span><b>${s.maxFont ? `${Math.round(s.maxFont)} px` : "—"}</b></div>
+      <div class="fact"><span>Fondo</span><b><i style="background:${safeColor(s.bg)}"></i>${esc(s.bg || "—")}</b></div>
+    </div>`;
+  const img = $(".shot", detail);
+  if (img) img.addEventListener("error", () => {
+    img.outerHTML = `<p class="shot-missing">La captura ya no está en el servidor (se reinició). Las medidas siguen en el prompt.</p>`;
+  }, { once: true });
+}
+
+$("#sectionList").addEventListener("click", (event) => {
+  const row = event.target.closest("[data-section]");
+  if (!row) return;
+  sectionIndex = Number(row.dataset.section);
+  renderSections();
+});
+$("#sectionDetail").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-viewport]");
+  if (!btn) return;
+  sectionViewport = btn.dataset.viewport;
+  renderSections();
+});
+
+$("#copyPrompt").addEventListener("click", async () => {
+  if (!kit) return;
+  await copyText(kit.prompt);
+  toast("Prompt copiado");
+});
+
+$("#downloadKit").addEventListener("click", async () => {
+  if (!kit) return;
+  try {
+    const res = await fetch(`/api/kit?run=${encodeURIComponent(kit.run)}`);
+    if (!res.ok) throw new Error();
+    downloadBlob(`webadn-kit-${hostOf(kit.url)}.zip`, await res.blob());
+  } catch {
+    // El servidor ya no tiene el run: se entrega al menos el prompt guardado aquí.
+    downloadBlob("PROMPT.md", new Blob([kit.prompt], { type: "text/markdown" }));
+    toast("El zip ya no está en el servidor: descargado solo el prompt");
+  }
+});
+
+// ---------- 3 · Medir ----------
+const measureProgress = progressUI("measure");
+const scoreClass = (n) => (n >= 85 ? "is-good" : n >= 65 ? "is-mid" : "is-bad");
+
+$("#measureForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!kit) return;
+  const data = new FormData(event.currentTarget);
+  measureProgress.start("Abriendo tu sitio en el navegador de medición…");
+  let result = null;
+  try {
+    await postStream("/api/compare", { run: kit.run, buildUrl: data.get("buildUrl"), ignore: data.getAll("ignore"), fingerprint: kit.fingerprint }, (type, payload) => {
+      if (type === "progress") measureProgress.say(payload.message);
+      if (type === "error") throw new Error(payload.message);
+      if (type === "result") result = payload;
+    });
+    if (!result) throw new Error("El servidor cortó la conexión (puede haberse quedado sin memoria). Inténtalo de nuevo.");
+    measureProgress.stop();
+    lastReport = result;
+    renderReport();
+  } catch (error) {
+    measureProgress.stop(`No se pudo medir: ${error.message}`);
+  }
+});
+
+function renderReport() {
+  const { report } = lastReport;
+  const total = (report.issues || []).length;
+  const vps = Object.entries(report.viewports || {});
+  const dims = Object.entries(report.dimensions || {}).map(([key, value]) => `
+    <li class="dim ${scoreClass(value)}"><span>${esc(dimensionLabels[key] || key)}</span><span class="bar"><i style="width:${Math.max(2, Math.round(value))}%"></i></span><b>${Math.round(value)}</b></li>`).join("");
+  const issues = (report.issues || []).slice(0, 30).map((it) => `
+    <li class="issue sev-${esc(it.severity || "low")}">
+      <div class="issue-head"><b>${esc(it.title)}</b><small>${esc(vpName(it.viewport))} · ${esc(dimensionLabels[it.dimension] || it.dimension || "")}</small></div>
+      <dl>
+        ${it.expected !== undefined ? `<dt>Referencia</dt><dd>${esc(it.expected)}</dd>` : ""}
+        ${it.actual !== undefined ? `<dt>Tu sitio</dt><dd>${esc(it.actual)}</dd>` : ""}
+      </dl>
+    </li>`).join("");
+  const pairs = vps.map(([name, v]) => {
+    const rows = (v.sections || []).filter((s) => s.refShot && s.buildShot).map((s) => `
+      <figure>
+        <figcaption>#${s.index + 1} ${esc(s.role || "")}${typeof s.visual === "number" ? ` · parecido ${Math.round(s.visual)}` : ""}</figcaption>
+        <div class="pair">
+          <div><span>Referencia</span><img class="shot" loading="lazy" alt="Referencia, sección ${s.index + 1}" src="${shotUrl(kit.run, s.refShot)}" /></div>
+          <div><span>Tu sitio</span><img class="shot" loading="lazy" alt="Tu sitio, sección ${s.index + 1}" src="${shotUrl(kit.run, s.buildShot)}" /></div>
+        </div>
+      </figure>`).join("");
+    return rows ? `<details class="more card pairs"><summary>Capturas lado a lado · ${esc(vpName(name))}</summary>${rows}</details>` : "";
+  }).join("");
+
+  $("#report").innerHTML = `
+    <div class="card" style="margin-top:16px">
+      <div class="score ${scoreClass(report.score)}" style="margin-top:0">
+        <div class="score-num">${Math.round(report.score)}<small>/100</small></div>
+        <div class="score-meta">
+          <strong>${esc(report.verdict || "")}</strong>
+          <span>Objetivo ${esc(report.target ?? 85)}${vps.length ? " · " + vps.map(([n, v]) => `${esc(vpName(n))} ${Math.round(v.score)}`).join(" · ") : ""}</span>
+          ${report.ignored?.length ? `<span>Sin puntuar: ${esc(report.ignored.map((x) => dimensionLabels[x] || x).join(", "))}</span>` : ""}
+        </div>
+      </div>
+      <ul class="dims">${dims}</ul>
+      ${total ? `<div class="report-actions"><button class="btn btn-accent btn-block" id="copyReport" type="button">Copiar correcciones para tu IA</button></div>` : ""}
+    </div>
+    <section class="sheet">
+      <h2>${total ? `Qué corregir (${total})` : "Sin diferencias relevantes"}</h2>
+      ${total ? `<ol class="issues">${issues}</ol>` : ""}
+      ${total > 30 ? `<p class="note">Se muestran las 30 de mayor impacto; al copiar se incluyen todas.</p>` : ""}
+    </section>
+    ${pairs}`;
+  $("#copyReport")?.addEventListener("click", async () => {
+    await copyText(lastReport.markdown || "");
+    toast("Correcciones copiadas");
+  });
+  $$("#report img.shot").forEach((img) => img.addEventListener("error", () => { img.closest("figure")?.remove(); }, { once: true }));
+  $("#report").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---------- arranque ----------
 fetch("/api/config").then((r) => (r.ok ? r.json() : null)).then((cfg) => {
   if (!cfg) return;
   dimensionLabels = cfg.dimensions || {};
-  if (!cfg.localOnly) stopServer.hidden = true;
-  if (cfg.auth) {
-    const out = document.createElement("a");
-    out.href = "/logout";
-    out.className = "copy-button";
-    out.textContent = "Salir";
-    stopServer.parentElement.appendChild(out);
-  }
-  verifyHint.textContent = cfg.allowLocalBuilds
-    ? "«localhost» es la máquina donde corre WebADN, no este dispositivo."
-    : "Este servidor solo puede medir URLs públicas (despliega tu build o usa un túnel).";
+  $("#logout").hidden = !cfg.auth;
+  if (cfg.allowLocalBuilds) $("#buildUrl").placeholder = "http://localhost:5173";
 }).catch(() => {});
 
-const scoreClass = (n) => (n >= 85 ? "is-good" : n >= 65 ? "is-mid" : "is-bad");
-const shotUrl = (run, file) => `/api/screenshots?run=${encodeURIComponent(run)}&file=${encodeURIComponent(file)}`;
-
-function renderReport(payload) {
-  lastReport = payload;
-  if (!payload) { verifyReport.innerHTML = ""; verifyStatus.textContent = ""; return; }
-  const { report, run } = payload;
-  const dims = Object.entries(report.dimensions || {}).map(([key, value]) => `
-    <li class="dim ${scoreClass(value)}">
-      <span class="dim-name">${esc(dimensionLabels[key] || key)}</span>
-      <span class="dim-bar"><i style="width:${Math.max(2, Math.round(value))}%"></i></span>
-      <span class="dim-value">${Math.round(value)}</span>
-    </li>`).join("");
-  const vps = Object.entries(report.viewports || {});
-  const vpLine = vps.map(([name, v]) => `${esc(name)} ${Math.round(v.score)}`).join(" · ");
-  const issues = (report.issues || []).slice(0, 40).map((it) => `
-    <li class="issue sev-${esc(it.severity || "low")}">
-      <div class="issue-head"><strong>${esc(it.title)}</strong><span class="issue-tags">${esc(it.viewport || "")} · ${esc(dimensionLabels[it.dimension] || it.dimension || "")}${it.impact ? ` · ≈${Number(it.impact).toFixed(1)} pts` : ""}</span></div>
-      ${it.expected !== undefined ? `<div class="issue-row"><span>Referencia</span><code>${esc(String(it.expected))}</code></div>` : ""}
-      ${it.actual !== undefined ? `<div class="issue-row"><span>Tu build</span><code>${esc(String(it.actual))}</code></div>` : ""}
-    </li>`).join("");
-  const pairs = vps.map(([name, v]) => {
-    const rows = (v.sections || []).filter((sec) => sec.refShot).map((sec) => `
-      <figure class="pair">
-        <figcaption>#${sec.index + 1} ${esc(sec.role || "")}${typeof sec.visual === "number" ? ` · parecido visual ${Math.round(sec.visual)}` : ""}${sec.issues ? ` · ${sec.issues} dif.` : ""}</figcaption>
-        <div class="pair-shots">
-          <div><span>Referencia</span><img loading="lazy" alt="Referencia, sección ${sec.index + 1}" src="${shotUrl(run, sec.refShot)}" /></div>
-          <div><span>Tu build</span>${sec.buildShot ? `<img loading="lazy" alt="Build, sección ${sec.index + 1}" src="${shotUrl(run, sec.buildShot)}" />` : `<p class="pair-missing">Sección ausente</p>`}</div>
-        </div>
-      </figure>`).join("");
-    return rows ? `<details class="pairs" ${name === "desktop" ? "open" : ""}><summary>Capturas lado a lado — ${esc(name)}</summary>${rows}</details>` : "";
-  }).join("");
-  const total = (report.issues || []).length;
-  verifyReport.innerHTML = `
-    <div class="score-card ${scoreClass(report.score)}">
-      <div class="score-number">${Math.round(report.score)}<small>/100</small></div>
-      <div class="score-meta">
-        <strong>${esc(report.verdict || "")}</strong>
-        <span>Objetivo ${esc(String(report.target ?? 85))} · ${vpLine}</span>
-        ${report.ignored?.length ? `<span>Sin puntuar: ${esc(report.ignored.map((d) => dimensionLabels[d] || d).join(", "))}</span>` : ""}
-        ${report.probeErrors?.length ? `<span class="score-warn">Mediciones incompletas: ${esc(report.probeErrors.slice(0, 2).join("; "))}</span>` : ""}
-      </div>
-    </div>
-    <ul class="dims">${dims}</ul>
-    <div class="report-actions">
-      <button class="copy-button" type="button" id="copyReport">Copiar informe para tu IA</button>
-    </div>
-    <h3 class="report-title">Qué corregir${total ? ` (${total})` : ""}</h3>
-    ${total ? `<ol class="issues">${issues}</ol>${total > 40 ? `<p class="verify-intro">Se muestran las 40 de mayor impacto; el informe copiado las incluye todas.</p>` : ""}` : `<p class="verify-intro">Sin diferencias relevantes.</p>`}
-    ${pairs}`;
-  verifyReport.querySelector("#copyReport").addEventListener("click", async (ev) => {
-    await copyText(payload.markdown || "");
-    ev.currentTarget.textContent = "Copiado ✓";
-  });
-}
-
-async function loadCompares(run) {
-  renderReport(null);
-  if (!run) return;
-  try {
-    const res = await fetch(`/api/kit?run=${encodeURIComponent(run)}&format=compares`);
-    if (!res.ok) return;
-    const { compares } = await res.json();
-    if (compares?.length) {
-      renderReport({ run, report: compares[0].report, markdown: "" });
-      verifyStatus.textContent = `Última medición: ${new Date(compares[0].report.comparedAt).toLocaleString()} (${compares.length} en total)`;
-      document.querySelector("#buildUrl").value = compares[0].report.build || "";
-    }
-  } catch { /* sin mediciones previas */ }
-}
-
-verifyForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const run = runNameOf(lastResponse);
-  if (!run || !lastResponse?.kit) {
-    verifyStatus.textContent = "Primero extrae una referencia (o carga una desde History).";
-    return;
-  }
-  const data = new FormData(verifyForm);
-  verifyButton.disabled = true;
-  verifyButton.classList.add("loading");
-  verifyStatus.textContent = "Abriendo tu build en el navegador de medición…";
-  try {
-    const response = await fetch("/api/compare", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ run, buildUrl: data.get("buildUrl"), ignore: data.getAll("ignore") })
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || `Error ${response.status}`);
-    }
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let got = false;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let cut;
-      while ((cut = buffer.indexOf("\n\n")) !== -1) {
-        const block = buffer.slice(0, cut);
-        buffer = buffer.slice(cut + 2);
-        const type = (block.match(/^event: (.+)$/m) || [])[1];
-        const raw = block.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("\n");
-        if (!type || !raw) continue;
-        const parsed = JSON.parse(raw);
-        if (type === "progress") verifyStatus.textContent = parsed.message || "Midiendo…";
-        if (type === "error") throw new Error(parsed.message);
-        if (type === "result") {
-          got = true;
-          renderReport(parsed);
-          verifyStatus.textContent = `Medido: ${new Date(parsed.report.comparedAt).toLocaleString()}`;
-        }
-      }
-    }
-    if (!got) throw new Error("La medición terminó sin resultado.");
-  } catch (error) {
-    verifyStatus.textContent = `No se pudo medir: ${error.message}`;
-  } finally {
-    verifyButton.disabled = false;
-    verifyButton.classList.remove("loading");
-  }
-});
-
-// --- Stop server (detiene el servidor node que corre oculto en background) ---
-stopServer.addEventListener("click", async () => {
-  if (!confirm("¿Detener el servidor? Tendrás que volver a arrancarlo con start-dashboard-hidden.vbs.")) return;
-  stopServer.disabled = true;
-  stopServer.textContent = "Deteniendo…";
-  try {
-    await fetch("/api/shutdown", { method: "POST" });
-  } catch {
-    /* fetch falla al cortarse la conexión: es el comportamiento esperado */
-  }
-  setStatus("Servidor detenido");
-  runButton.disabled = true;
-  resetButton.disabled = true;
-  document.querySelectorAll(".output-actions .copy-button").forEach(b => { b.disabled = true; });
-  stopServer.textContent = "Detenido ✓";
-});
-
-// --- Reset: vuelve la app al estado inicial (formulario + resultados) ---
-const PLACEHOLDERS = {
-  prompt: "El resultado aparecerá aquí.",
-  sections: "Section map will appear here.",
-  styles: "CSS styles will appear here.",
-  motion: "Motion recipes will appear here.",
-  assets: "Asset manifest will appear here.",
-  risks: "Risk findings will appear here."
-};
-const NO_SCREENSHOTS = `<p style="color:var(--text-muted); grid-column:1/-1;">No screenshots captured yet.</p>`;
-
-function resetWorkspace() {
-  // Si hay una extracción en curso, confirmar antes de dejar el stream huérfano.
-  if (runButton.disabled && !confirm("Hay una extracción en curso. ¿Resetear de todas formas?")) return;
-
-  // Formulario: reset nativo + repoder preset/checkbox que reset() puede dejar mal.
-  form.reset();
-  const presetEl = document.querySelector("#preset");
-  if (presetEl) presetEl.value = "standard";
-  const ignoreRobots = document.querySelector("[name=ignoreRobots]");
-  if (ignoreRobots) ignoreRobots.checked = false;
-
-  // Secciones: limpiar y re-sembra las 2 filas iniciales (como en DOMContentLoaded).
-  if (sectionsList) sectionsList.innerHTML = "";
-  addSection({ name: "Hero" });
-  addSection({ name: "Servicios" });
-
-  // Resultados: paneles a su placeholder y capturas/artefacto vacíos.
-  document.querySelector("#outputPrompt").textContent = PLACEHOLDERS.prompt;
-  document.querySelector("#outputSections").textContent = PLACEHOLDERS.sections;
-  document.querySelector("#outputStyles").textContent = PLACEHOLDERS.styles;
-  document.querySelector("#outputMotion").textContent = PLACEHOLDERS.motion;
-  document.querySelector("#outputAssets").textContent = PLACEHOLDERS.assets;
-  document.querySelector("#outputRisks").textContent = PLACEHOLDERS.risks;
-  screenshotGrid.innerHTML = NO_SCREENSHOTS;
-  artifactPath.textContent = "";
-  lastResponse = null;
-  renderReport(null);
-
-  // Métricas, estado y pestaña activa.
-  resetMetrics();
-  setStatus("Idle");
-  setActiveTab("prompt");
-}
-
-resetButton.addEventListener("click", resetWorkspace);
-
-function setRunning(isRunning) {
-  statusDot.classList.toggle("running", isRunning);
-  runButton.classList.toggle("loading", isRunning);
-  runButton.disabled = isRunning;
-  if (isRunning) {
-    setStatus("Running");
-    resetMetrics();
-  }
-}
-
-function setStatus(value) {
-  statusText.textContent = value;
-}
-
-
+const saved = readLocal();
+if (saved.length) { kit = saved[0]; }
+renderKit();
+loadRecents();

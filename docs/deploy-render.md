@@ -1,63 +1,55 @@
-# Desplegar WebADN en Render
+# Desplegar WebADN en Render (plan gratuito)
 
-Con esto el dashboard vive en una URL fija (`https://<nombre>.onrender.com`) y lo usas desde el
-celular sin tener tu PC encendido.
+El dashboard queda en una URL fija (`https://<nombre>.onrender.com`) y lo usas desde el celular
+sin tener tu PC encendido.
 
 ## Pasos
 
-1. Asegúrate de que `Dockerfile` y `render.yaml` están en la rama `main` de GitHub.
-2. En Render: **New + → Blueprint** → elige el repositorio `WebADN`.
-3. Render te pedirá el valor de **`AUTH_TOKEN`**: es la contraseña del dashboard. Usa una larga
-   (16+ caracteres); es lo único que protege el servicio. Sin ella el servidor se niega a arrancar.
-4. **Apply**. El primer despliegue tarda varios minutos (la imagen incluye Chromium).
-5. Abre la URL en el celular, introduce la contraseña y, si quieres, "Añadir a pantalla de inicio".
+1. En Render: **New + → Blueprint** → elige el repositorio `WebADN`.
+2. Escribe un valor para **`AUTH_TOKEN`**: es la contraseña con la que entrarás (16+ caracteres).
+3. **Apply**. El primer despliegue tarda varios minutos (la imagen incluye Chromium).
+4. Abre la URL en el celular, pon la contraseña y, si quieres, "Añadir a pantalla de inicio".
 
-Para hacerlo sin Blueprint: **New + → Web Service → Docker**, health check `/healthz`, y añade la
-variable `AUTH_TOKEN` a mano.
+No hay nada más que configurar: el resto de valores vienen en el `Dockerfile`.
 
-## Qué plan elegir
+## Qué esperar del plan gratuito
 
-Una extracción en profundidad estándar de una página de prueba muy sencilla llegó a **~480 MB**
-de memoria (Node + Chromium). Un sitio real con WebGL y vídeo usará más.
-
-| Plan de Render | RAM | Qué esperar |
-|---|---|---|
-| Free / Starter | 512 MB | Lo más probable es que el servicio se reinicie por falta de memoria a mitad de extracción. Free además se duerme tras 15 min sin uso y no admite disco. |
-| Standard | 2 GB | El recomendado; es el que trae `render.yaml`. |
-
-Los precios cambian: confírmalos en render.com/pricing. Si quieres probar gratis de todos modos,
-cambia `plan: free` en `render.yaml`, borra el bloque `disk:` y usa la profundidad "Rápida".
-
-## Historial y kits
-
-`render.yaml` monta un disco de 1 GB en `/data`; las extracciones se guardan en `/data/runs`
-(variable `RUNS_DIR`) y sobreviven a reinicios y despliegues. Sin disco, el historial se pierde en
-cada reinicio: descarga el kit en `.zip` al terminar.
+- **Memoria (512 MB).** El servidor arranca en modo de bajo consumo (`LOW_MEMORY=true`): una sola
+  medición a la vez y Chromium sin proceso de GPU. En pruebas con una página sencilla el pico fue
+  de ~400 MB. Sitios pesados (WebGL, vídeo, páginas muy largas) pueden agotar la memoria: el
+  servicio se reinicia solo y el dashboard te avisa de que la conexión se cortó. Sin GPU, los
+  lienzos WebGL pueden salir en blanco en las capturas.
+- **Se mantiene despierto.** Render duerme los servicios gratuitos tras 15 minutos sin visitas; el
+  servidor visita su propia URL cada 10 minutos para evitarlo (`KEEP_AWAKE=true`). Tras un
+  despliegue o un reinicio, la primera carga sí tarda alrededor de un minuto.
+- **Horas gratuitas.** Render da un cupo mensual de horas gratuitas compartido entre todos los
+  servicios web gratuitos de tu cuenta (750 h al escribir esto; confírmalo en render.com/pricing).
+  Un servicio despierto todo el mes consume casi todo el cupo. Si tus otros proyectos también son
+  servicios web gratuitos, pon `KEEP_AWAKE=false` en Environment para que este duerma cuando no lo
+  uses; si se agota el cupo, Render suspende los servicios gratuitos hasta el mes siguiente.
+- **Sin disco.** El historial del servidor se borra en cada reinicio o despliegue. Por eso el
+  dashboard guarda tus últimos kits en el propio celular: puedes seguir copiando el prompt y
+  midiendo aunque el servidor se haya reiniciado. Lo que sí se pierde son las capturas y el `.zip`;
+  descárgalo al terminar si lo quieres.
 
 ## Diferencias respecto a usarlo en tu PC
 
-- **"Medir build" necesita una URL pública.** El servidor no puede abrir el `localhost` de tu PC
-  ni de tu celular. Despliega tu build (Render Static Site, Vercel, Netlify…) y pega esa URL.
-- Por seguridad, el servidor no mide direcciones privadas ni locales.
-- Una sola extracción a la vez (`MAX_CONCURRENT=1`); las demás esperan en cola.
+- **"Medir" necesita una URL pública.** El servidor no puede abrir `localhost`. Publica tu sitio
+  (Render Static Site, Vercel, Netlify…) y pega esa URL.
 - Algunos sitios bloquean el tráfico que viene de centros de datos; si una referencia no carga en
   Render pero sí desde tu PC, es por eso.
 
 ## Acceso
 
-- Navegador: formulario de contraseña en `/login`; la sesión dura 30 días (`/logout` para salir).
-  Cambiar `AUTH_TOKEN` cierra todas las sesiones.
+- Navegador: contraseña en `/login`; la sesión dura 30 días. Cambiar `AUTH_TOKEN` cierra todas las
+  sesiones. 5 intentos por minuto.
 - Scripts / API: cabecera `Authorization: Bearer <AUTH_TOKEN>`.
-- 5 intentos de contraseña por minuto.
 
-## Variables
+## Si quieres más margen
 
-| Variable | Valor en Render | Para qué |
-|---|---|---|
-| `AUTH_TOKEN` | (la defines tú) | Contraseña del dashboard. Obligatoria. |
-| `RUNS_DIR` | `/data/runs` | Dónde se guardan las extracciones. |
-| `MAX_CONCURRENT` | `1` | Extracciones simultáneas. |
-| `PORT`, `HOST`, `TRUST_PROXY` | ya definidas en el `Dockerfile` | No hace falta tocarlas. |
+Con un plan de pago de 2 GB o más: en Environment pon `LOW_MEMORY=false` (recupera WebGL) y
+`KEEP_AWAKE=false` (ya no se duerme), y añade un disco montado en `/data` para conservar el
+historial.
 
 ## Si actualizas Playwright
 

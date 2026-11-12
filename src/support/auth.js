@@ -58,22 +58,23 @@ export function loginPage({ error = "" } = {}) {
 <meta name="robots" content="noindex" />
 <meta name="theme-color" content="#121212" />
 <title>WebADN — acceso</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: #121212; color: #fff; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  form { width: min(100%, 380px); display: grid; gap: 16px; padding: 28px 24px; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 12px; }
-  h1 { margin: 0; font-size: 1.35rem; }
-  p { margin: 0; color: #b0b0b0; font-size: 0.9rem; line-height: 1.5; }
-  label { display: grid; gap: 8px; font-size: 0.8rem; color: #b0b0b0; }
-  input { min-height: 48px; padding: 0 14px; font-size: 16px; color: #fff; background: #181818; border: 1px solid #3a3a3a; border-radius: 8px; }
-  input:focus-visible, button:focus-visible { outline: 2px solid #e07b30; outline-offset: 2px; }
-  button { min-height: 50px; font-size: 1rem; font-weight: 600; color: #fff; background: #d2691e; border: 0; border-radius: 8px; cursor: pointer; }
-  .error { color: #ff8a8a; }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: #0e1116; color: #f4f6f8; font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  form { width: min(100%, 380px); display: grid; gap: 16px; padding: 28px 24px; background: #181c23; border: 1px solid rgba(255,255,255,.07); border-radius: 26px; }
+  h1 { margin: 0; font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; }
+  p { margin: 0; color: #8a93a2; font-size: 0.9rem; line-height: 1.5; }
+  label { display: grid; gap: 8px; font-size: 0.85rem; color: #8a93a2; }
+  input { min-height: 52px; padding: 0 18px; font-size: 16px; color: #f4f6f8; background: #20252e; border: 1px solid rgba(255,255,255,.07); border-radius: 18px; }
+  input:focus-visible, button:focus-visible { outline: 2px solid #a8f01c; outline-offset: 2px; }
+  button { min-height: 54px; font: 500 1rem inherit; font-family: inherit; color: #10140a; background: #a8f01c; border: 0; border-radius: 999px; cursor: pointer; }
+  .error { color: #ff6b6b; }
 </style>
 </head>
 <body>
 <form method="post" action="/login">
-  <h1>WebADN</h1>
+  <h1>webadn</h1>
   <p>Este dashboard es privado. Introduce la contraseña.</p>
   <label>Contraseña
     <input type="password" name="password" autocomplete="current-password" required autofocus />

@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join, normalize, relative as pathRelative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runOrchestrator } from "./orchestrator.js";
+import { runQuickKit, loadRun } from "./quickKit.js";
 import { loadLocalEnv } from "./support/env.js";
 import { validatePublicHttpUrl } from "./support/urlSafety.js";
 import { RUNS_DIR } from "./support/artifacts.js";
@@ -30,6 +30,7 @@ const flag = (name, fallback) => (process.env[name] === undefined ? fallback : S
 // servidor expuesto permitiría sondear la red interna: ahí hay que activarlo a propósito.
 const ALLOW_LOCAL_BUILDS = flag("ALLOW_LOCAL_BUILDS", IS_LOCAL_ONLY);
 const ALLOW_EMBED = flag("ALLOW_EMBED", false);
+const DEFAULT_PRESET = ["fast", "standard", "surgical"].includes(process.env.DEFAULT_PRESET) ? process.env.DEFAULT_PRESET : "standard";
 
 // En un hosting público sin contraseña cualquiera con la URL podría lanzar navegadores
 // en tu servidor: mejor no arrancar que arrancar abierto.
@@ -259,7 +260,19 @@ function readRawBody(request, limit) {
   });
 }
 
+// Mantener despierta la instancia gratuita de Render: se duerme tras 15 min sin tráfico
+// entrante, así que el propio servicio visita su URL pública cada 10 min.
+// KEEP_AWAKE=false lo desactiva (p. ej. para no gastar las horas gratuitas del mes).
+function startKeepAwake() {
+  const base = process.env.RENDER_EXTERNAL_URL;
+  if (!base || !flag("KEEP_AWAKE", true)) return;
+  const ping = () => fetch(`${base}/healthz`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
+  setInterval(ping, 10 * 60_000).unref();
+  console.log(`Keep-awake activo: ${base}/healthz cada 10 min.`);
+}
+
 server.listen(PORT, HOST, () => {
+  startKeepAwake();
   console.log(`Dashboard ready at http://${IS_LOCAL_ONLY ? "127.0.0.1" : HOST}:${PORT}`);
   if (!IS_LOCAL_ONLY && !AUTH_TOKEN) {
     console.log("Aviso: el dashboard es accesible desde la red (HOST=" + HOST + ") sin AUTH_TOKEN.");
@@ -335,31 +348,19 @@ async function handleExtract(request, response) {
   if (typeof heartbeat.unref === "function") heartbeat.unref();
 
   try {
-    const masterPrompt = await extractionSemaphore.run(() => runOrchestrator({
+    const result = await extractionSemaphore.run(() => runQuickKit({
       url: validatedUrl,
-      niche: body.niche,
-      headless: true,
-      timeoutMs: 120000,
-      preset: body.preset || "standard",
-      force: body.force,
+      niche: String(body.niche).slice(0, 200),
+      preset: ["fast", "standard", "surgical"].includes(body.preset) ? body.preset : DEFAULT_PRESET,
+      notes: typeof body.notes === "string" ? body.notes.slice(0, 4000) : "",
+      force: body.force === true,
       ignoreRobots: body.ignoreRobots === true,
-      clientBrief: body.clientBrief || null,
+      timeoutMs: 60000,
       onProgress
     }));
 
     response.socket?.setNoDelay(true);
-    response.socket?.setKeepAlive(true);
-
-    const promptLen = masterPrompt.prompt ? masterPrompt.prompt.length : 0;
-    const payload = JSON.stringify({
-      prompt: promptLen > 1_000_000 ? masterPrompt.prompt.slice(0, 5000) + "\n...[truncated - read from artifactPath]" : masterPrompt.prompt,
-      artifactPath: masterPrompt.artifactPath,
-      truncated: promptLen > 1_000_000,
-      evidence: trimEvidenceForSSE(masterPrompt.evidence),
-      fidelityScore: masterPrompt.fidelityScore,
-      kit: masterPrompt.kit ? { run: masterPrompt.kit.run, prompt: masterPrompt.kit.prompt } : null,
-      generatedAt: new Date().toISOString()
-    });
+    const payload = JSON.stringify(result);
 
     const ok = response.write(`event: result\ndata: ${payload}\n\n`);
     if (!ok) {
@@ -388,18 +389,8 @@ async function handleGetRun(urlObj, response) {
     sendJson(response, 400, { error: "Parámetro run no válido." });
     return;
   }
-  const runPath = join(RUNS_DIR, run);
   try {
-    const evidence = JSON.parse(await readFile(join(runPath, "evidence.json"), "utf8"));
-    const prompt = await readFile(join(runPath, "prompt.md"), "utf8").catch(() => "");
-    const kitPrompt = await readFile(join(runPath, KIT_DIR, "PROMPT.md"), "utf8").catch(() => null);
-    sendJson(response, 200, {
-      prompt,
-      artifactPath: runPath,
-      evidence: trimEvidenceForSSE(evidence),
-      fidelityScore: evidence.fidelityScore,
-      kit: kitPrompt ? { run, prompt: kitPrompt } : null
-    });
+    sendJson(response, 200, await loadRun(run));
   } catch {
     sendJson(response, 404, { error: "Run no encontrado." });
   }
@@ -459,6 +450,20 @@ async function handleCompare(request, response) {
     return;
   }
   const ignore = Array.isArray(body.ignore) ? body.ignore.filter((d) => DIMENSIONS.includes(d)) : [];
+
+  // Sin disco persistente el run puede haberse perdido en un reinicio: el navegador
+  // guarda la huella y la reenvía para poder seguir midiendo.
+  const fingerprintPath = join(RUNS_DIR, body.run, KIT_DIR, "fingerprint.json");
+  const exists = await stat(fingerprintPath).then(() => true, () => false);
+  if (!exists) {
+    const fp = body.fingerprint;
+    if (!fp || typeof fp !== "object" || !fp.viewports || typeof fp.viewports !== "object") {
+      sendJson(response, 404, { error: "La referencia ya no está en el servidor. Vuelve a extraerla." });
+      return;
+    }
+    await mkdir(join(RUNS_DIR, body.run, KIT_DIR), { recursive: true });
+    await writeFile(fingerprintPath, JSON.stringify(fp));
+  }
   if (extractionSemaphore.waiters.length >= MAX_QUEUE) {
     sendJson(response, 429, { error: "Servidor ocupado. Inténtalo en unos minutos." });
     return;
@@ -512,7 +517,7 @@ function readJsonBody(request) {
     let raw = "";
     request.on("data", (chunk) => {
       raw += chunk;
-      if (raw.length > 1_000_000) {
+      if (raw.length > 3_000_000) {
         request.destroy();
         const err = new Error("Payload too large.");
         err.status = 413;
