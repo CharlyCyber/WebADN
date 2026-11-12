@@ -224,6 +224,173 @@ export function probeLib() {
   };
 
   // ---------- tipografía + color + efectos (una sola pasada) ----------
+  // Plano de la sección: cajas de los elementos clave (titulares, textos, medios,
+  // botones, tarjetas) con posición y tamaño, para reconstruir la composición y no
+  // solo "N columnas". x/w en % del ancho de pantalla; y/h en px desde el inicio de
+  // la sección. Los elementos repetidos en fila o columna se agrupan (n, gap).
+  W.blueprint = (i) => {
+    const sec = (W.secs || [])[i];
+    if (!sec || !sec.el) return null;
+    const vw = innerWidth, root = sec.el, raw = [];
+    const pct = (px) => rnd((px / vw) * 100, 1);
+    const box = (el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 6 || r.height < 6) return null;
+      if (r.right < -vw * 0.5 || r.left > vw * 1.5) return null;
+      return { r, x: pct(r.left), w: pct(r.width), y: Math.round(r.top + scrollY - sec.top), h: Math.round(r.height) };
+    };
+    const radiusOf = (cs, r) => {
+      const v = parseFloat(cs.borderTopLeftRadius) || 0;
+      return v >= Math.min(r.width, r.height) / 2 - 1 && v > 0 ? "pill" : Math.round(v);
+    };
+    const paint = (cs) => {
+      const bg = W.rgb(cs.backgroundColor);
+      const o = {};
+      if (bg && bg.a > 0.05) o.bg = W.hex(bg);
+      if (cs.backgroundImage && cs.backgroundImage !== "none") o.bgImage = /gradient/.test(cs.backgroundImage) ? "gradient" : "image";
+      if (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== "none") { const bc = W.rgb(cs.borderTopColor); o.border = `${rnd(parseFloat(cs.borderTopWidth), 1)}px ${bc ? W.hex(bc) : ""}`.trim(); }
+      if (cs.boxShadow && cs.boxShadow !== "none") o.shadow = true;
+      return o;
+    };
+    const seen = new Set();
+    const push = (el, k, extra) => { if (seen.has(el)) return; const b = box(el); if (!b) return; seen.add(el); raw.push({ k, el, ...b, ...extra }); };
+
+    let count = 0;
+    for (const el of root.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li,blockquote,a,button,[role=button],img,video,canvas,picture,svg,input,textarea")) {
+      if (++count > 700) break;
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      const tag = el.tagName.toLowerCase();
+      if (/^(img|video|canvas|picture|svg)$/.test(tag)) {
+        if (tag === "img" && el.closest("picture")) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 40 || r.height < 40) continue;
+        if (tag === "svg" && el.closest("a,button")) continue;
+        push(el, tag === "picture" ? "img" : tag, { ratio: rnd(r.width / r.height), radius: radiusOf(cs, r), fit: /^(img|video)$/.test(tag) ? cs.objectFit : undefined });
+        continue;
+      }
+      if (tag === "input" || tag === "textarea") {
+        const r = el.getBoundingClientRect();
+        push(el, "field", { radius: radiusOf(cs, r), ...paint(cs) });
+        continue;
+      }
+      if (/^(a|button)$/.test(tag) || el.getAttribute("role") === "button") {
+        if (buttonLike(el, cs)) {
+          const r = el.getBoundingClientRect(); const f = fontOf(el, cs); const c = W.rgb(cs.color);
+          push(el, "button", { fs: f.size, fw: f.weight, color: c ? W.hex(c) : null, radius: radiusOf(cs, r), padX: Math.round(parseFloat(cs.paddingLeft) || 0), upper: cs.textTransform === "uppercase" || undefined, ...paint(cs) });
+        } else if ((el.innerText || "").trim().length > 0 && !el.closest("h1,h2,h3,h4,h5,h6,p,li")) {
+          const f = fontOf(el, cs); const c = W.rgb(cs.color);
+          push(el, "link", { fs: f.size, fw: f.weight, color: c ? W.hex(c) : null });
+        }
+        continue;
+      }
+      const text = (el.innerText || "").trim();
+      if (text.length < 2) continue;
+      if (tag === "li" && el.querySelector("p,h1,h2,h3,h4,h5,h6,li")) continue;
+      if (tag === "p" && el.closest("li,a,button")) { if (el.closest("a,button")) continue; }
+      const f = fontOf(el, cs); const c = W.rgb(cs.color);
+      const lines = Math.max(1, Math.round(el.getBoundingClientRect().height / (f.size * f.lineHeight)));
+      push(el, /^h[1-6]$/.test(tag) ? tag : "text", { fs: f.size, fw: f.weight, lh: f.lineHeight, ls: f.letterSpacing || undefined, font: f.family, color: c ? W.hex(c) : null, align: cs.textAlign === "start" ? "left" : cs.textAlign, lines, chars: text.length, upper: cs.textTransform === "uppercase" || undefined });
+    }
+    // texto grande fuera de etiquetas semánticas (div/span): rótulos, marquesinas, cifras
+    count = 0;
+    for (const t of textEls(root)) {
+      if (++count > 300) break;
+      if (seen.has(t) || t.closest("h1,h2,h3,h4,h5,h6,p,li,blockquote,a,button")) continue;
+      const cs = getComputedStyle(t);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      const text = (t.innerText || "").trim();
+      const f = fontOf(t, cs);
+      if (text.length < 3 || f.size < 20) continue;
+      const c = W.rgb(cs.color);
+      push(t, "text", { fs: f.size, fw: f.weight, lh: f.lineHeight, ls: f.letterSpacing || undefined, font: f.family, color: c ? W.hex(c) : null, lines: Math.max(1, Math.round(t.getBoundingClientRect().height / (f.size * f.lineHeight))), chars: text.length, upper: cs.textTransform === "uppercase" || undefined });
+    }
+    // tarjetas / superficies con fondo, borde o sombra propios
+    count = 0;
+    for (const el of root.getElementsByTagName("*")) {
+      if (++count > 700) break;
+      if (seen.has(el) || /^(A|BUTTON|IMG|VIDEO|CANVAS|SVG|PICTURE|INPUT|TEXTAREA|H1|H2|H3|H4|H5|H6|P|LI|SPAN)$/.test(el.tagName)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width * r.height < 14000 || r.width > vw * 0.94) continue;
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      const p = paint(cs);
+      if (!p.bg && !p.bgImage && !p.border && !p.shadow) continue;
+      // envoltorio e interior con la misma caja: es una sola tarjeta (se funden sus pinturas)
+      const twin = raw.find((e) => e.k === "card" && Math.abs(e.r.left - r.left) < 4 && Math.abs(e.r.top - r.top) < 4 && Math.abs(e.r.width - r.width) < 6 && Math.abs(e.r.height - r.height) < 6);
+      if (twin) { for (const [k, v] of Object.entries(p)) if (twin[k] === undefined) twin[k] = v; if (!twin.radius) twin.radius = radiusOf(cs, r); seen.add(el); continue; }
+      push(el, "card", { radius: radiusOf(cs, r), pad: Math.round(parseFloat(cs.paddingTop) || 0), ...p });
+    }
+
+    // agrupar repetidos: misma clase de elemento, mismo tamaño, alineados en fila o columna
+    const sim = (a, b, t) => Math.abs(a - b) <= t;
+    const used = new Set(); const out = [];
+    raw.sort((a, b) => a.y - b.y || a.x - b.x);
+    for (let a = 0; a < raw.length; a++) {
+      if (used.has(a)) continue;
+      const A = raw[a]; const rowG = [A], colG = [A]; const rowI = [a], colI = [a];
+      const inline = A.k === "link" || A.k === "button";
+      for (let b = a + 1; b < raw.length; b++) {
+        if (used.has(b)) continue;
+        const B = raw[b];
+        if (B.k !== A.k || !sim(A.h, B.h, Math.max(6, A.h * 0.12)) || (A.fs && !sim(A.fs, B.fs || 0, 0.6))) continue;
+        const sameW = sim(A.w, B.w, Math.max(1.2, A.w * 0.08));
+        // enlaces y botones en línea (menús, pies): mismo renglón aunque cada uno mida distinto
+        if (!sameW && !(inline && sim(A.y, B.y, 8))) continue;
+        if (sim(A.y, B.y, 8)) { if (rowG.every((g) => B.x >= g.x + g.w - 0.3 || B.x + B.w <= g.x + 0.3)) { rowG.push(B); rowI.push(b); } }
+        else if (sim(A.x, B.x, 0.8)) { colG.push(B); colI.push(b); }
+      }
+      const { el: _el, r: _r, ...item } = A;
+      if (rowG.length >= 2 && rowG.length >= colG.length) {
+        rowI.forEach((x) => used.add(x));
+        rowG.sort((p, q) => p.x - q.x);
+        item.n = rowG.length; item.dir = "row"; item.gap = rnd(rowG[1].x - rowG[0].x - rowG[0].w, 1);
+        item.span = rnd(rowG[rowG.length - 1].x + rowG[rowG.length - 1].w - rowG[0].x, 1);
+        const ws = rowG.map((g) => g.w);
+        if (Math.max(...ws) - Math.min(...ws) > Math.max(1.2, A.w * 0.08)) {
+          item.varW = true; item.x = rowG[0].x;
+          item.w = rnd(ws.reduce((t, v) => t + v, 0) / ws.length, 1);
+          item.gap = rnd((item.span - ws.reduce((t, v) => t + v, 0)) / (rowG.length - 1), 1);
+        }
+      } else if (colG.length >= 2) {
+        colI.forEach((x) => used.add(x));
+        item.n = colG.length; item.dir = "column"; item.gapY = Math.round(colG[1].y - colG[0].y - colG[0].h);
+      } else used.add(a);
+      out.push(item);
+    }
+    // prioridad: lo grande y lo tipográficamente dominante primero; después se reordena por posición
+    const weight = (e) => (/^h[1-6]$/.test(e.k) ? 5e5 + (e.fs || 0) * 1000 : e.k === "button" ? 4e5 : 0) + e.w * e.h * (e.n || 1);
+    const kept = out.sort((p, q) => weight(q) - weight(p)).slice(0, 14).sort((p, q) => p.y - q.y || p.x - q.x);
+    // márgenes laterales del contenido (lo que no es a sangre)
+    const inner = raw.filter((e) => e.w < 96 && e.x >= 0 && e.x + e.w <= 100.5);
+    const left = inner.length ? Math.min(...inner.map((e) => e.x)) : null;
+    const right = inner.length ? Math.max(...inner.map((e) => e.x + e.w)) : null;
+    for (const e of kept) for (const key of Object.keys(e)) if (e[key] === undefined || e[key] === null) delete e[key];
+    return {
+      elements: kept,
+      container: left === null ? null : { left: Math.round((left / 100) * vw), right: Math.round(((100 - right) / 100) * vw), widthPct: rnd(right - left, 1) },
+    };
+  };
+
+  // Fuentes web que carga la página: de dónde vienen y con qué pesos.
+  W.fontSources = () => {
+    const links = [...document.querySelectorAll("link[href]")].map((l) => l.href)
+      .filter((h) => /fonts\.googleapis\.com|use\.typekit\.net|fonts\.bunny\.net|rsms\.me\/inter|fontshare\.com|fonts\.adobe\.com/.test(h)).slice(0, 6);
+    const faces = {};
+    try {
+      for (const f of document.fonts) {
+        if (f.status !== "loaded") continue;
+        const fam = String(f.family).replace(/^["']|["']$/g, "");
+        const e = (faces[fam] = faces[fam] || { family: fam, weights: new Set(), italic: false });
+        e.weights.add(String(f.weight));
+        if (f.style === "italic") e.italic = true;
+      }
+    } catch { /* API no disponible */ }
+    const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ""; } };
+    const provider = links.some((h) => /googleapis/.test(h)) ? "Google Fonts" : links.some((h) => /typekit|adobe/.test(h)) ? "Adobe Fonts" : links.length ? hostOf(links[0]) : null;
+    return { provider, links, loaded: Object.values(faces).slice(0, 12).map((e) => ({ family: e.family, weights: [...e.weights].sort(), italic: e.italic })) };
+  };
+
   W.describeStyle = () => {
     const vw = innerWidth, vh = innerHeight;
     const roles = {}; const families = {}; const sizes = {}; const textColors = {}; const accents = {}; const bgs = {};

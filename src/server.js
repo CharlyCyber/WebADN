@@ -192,6 +192,10 @@ const server = createServer(async (request, response) => {
         await handleServeScreenshot(request, response);
         return;
       }
+      if (pathname.startsWith("/vendor/pdfjs/")) {
+        await serveVendor(pathname, response);
+        return;
+      }
       await serveStatic(request, response);
       return;
     }
@@ -297,8 +301,9 @@ function handleShutdown(response) {
 async function handleExtract(request, response) {
   const body = await readJsonBody(request);
 
-  if (!body.url || !body.niche) {
-    sendJson(response, 400, { error: "URL and niche are required." });
+  const documentText = typeof body.document === "string" ? body.document.slice(0, 60_000) : "";
+  if (!body.url || (!String(body.niche || "").trim() && !documentText.trim())) {
+    sendJson(response, 400, { error: "Hacen falta la web de referencia y tu nicho (o un PDF con la información del negocio)." });
     return;
   }
 
@@ -350,7 +355,9 @@ async function handleExtract(request, response) {
   try {
     const result = await extractionSemaphore.run(() => runQuickKit({
       url: validatedUrl,
-      niche: String(body.niche).slice(0, 200),
+      niche: String(body.niche || "").slice(0, 200),
+      document: documentText,
+      documentName: typeof body.documentName === "string" ? body.documentName.slice(0, 120) : "",
       preset: ["fast", "standard", "surgical"].includes(body.preset) ? body.preset : DEFAULT_PRESET,
       notes: typeof body.notes === "string" ? body.notes.slice(0, 4000) : "",
       force: body.force === true,
@@ -483,6 +490,25 @@ async function handleCompare(request, response) {
   } finally {
     clearInterval(heartbeat);
     response.end();
+  }
+}
+
+// Lector de PDF para el navegador (el texto se extrae en el dispositivo; el archivo no se sube).
+const PDFJS_DIR = fileURLToPath(new URL("../node_modules/pdfjs-dist/legacy/build", import.meta.url));
+const PDFJS_FILES = new Set(["pdf.min.mjs", "pdf.worker.min.mjs"]);
+
+async function serveVendor(pathname, response) {
+  const file = pathname.slice("/vendor/pdfjs/".length);
+  if (!PDFJS_FILES.has(file)) {
+    sendJson(response, 404, { error: "Not found" });
+    return;
+  }
+  try {
+    const content = await readFile(join(PDFJS_DIR, file));
+    response.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=604800, immutable" });
+    response.end(content);
+  } catch {
+    sendJson(response, 404, { error: "Lector de PDF no instalado (ejecuta npm install)." });
   }
 }
 

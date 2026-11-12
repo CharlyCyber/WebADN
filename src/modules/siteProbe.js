@@ -176,6 +176,8 @@ async function probeViewport(browser, url, name, opts) {
       const s = await page.evaluate((i) => window.__WADN.describeSection(i), t.index);
       if (!s) continue;
       s.top = t.top; s.height = t.height;
+      const plan = await page.evaluate((i) => window.__WADN.blueprint(i), t.index).catch(() => null);
+      if (plan) { s.elements = plan.elements; s.container = plan.container; }
       if (sections.length < depth.shots) {
         try {
           const scrolled = await page.evaluate(() => window.scrollY);
@@ -193,6 +195,8 @@ async function probeViewport(browser, url, name, opts) {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(300);
     const style = await page.evaluate(() => window.__WADN.describeStyle());
+    const fontSources = await page.evaluate(() => window.__WADN.fontSources()).catch(() => null);
+    if (fontSources && style.type) style.type.sources = fontSources;
     const motion = analyzeMotion(rawMotion, { vh: vp.height, totalStops: stops.length, sectionCount: sections.length });
 
     // ---- hover (solo escritorio) ----

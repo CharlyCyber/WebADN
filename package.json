@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "webadn",
   "version": "1.0.0",
   "description": "WebADN - Reverse engineering and context compiler for AI agents in IDEs.",
@@ -27,6 +27,7 @@
   "license": "MIT",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "pdfjs-dist": "4.10.38",
     "playwright": "^1.49.1"
   },
   "engines": {

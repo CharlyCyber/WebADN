@@ -4,6 +4,7 @@
 // instancias pequeñas. El CLI sigue usando el pipeline completo.
 
 import { readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { basename, join } from "node:path";
 import { captureFingerprint } from "./modules/siteProbe.js";
 import { writeKit, KIT_DIR, REF_SHOT_PREFIX } from "./modules/buildKit.js";
@@ -23,14 +24,36 @@ export async function loadRun(run) {
 }
 
 /**
- * @param {{url:string, niche:string, preset?:string, notes?:string, ignoreRobots?:boolean, force?:boolean, timeoutMs?:number, onProgress?:Function}} config
+/** Limpia el texto de un documento del cliente antes de meterlo en el prompt. */
+export function cleanDocument(text, max = 12000) {
+  const clean = String(text ?? "")
+    .replace(/<\/?documento_del_negocio>/gi, "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ ?\n ?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return clean.length > max ? clean.slice(0, max) + "\n[… documento recortado]" : clean;
+}
+
+export const DOCUMENT_NICHE = "el negocio descrito en el documento adjunto";
+
+/**
+ * El nicho, las notas y el documento solo alimentan el prompt: la medición de la
+ * referencia es idéntica sea cual sea el negocio.
+ * @param {{url:string, niche?:string, document?:string, documentName?:string, preset?:string, notes?:string, ignoreRobots?:boolean, force?:boolean, timeoutMs?:number, onProgress?:Function}} config
  */
 export async function runQuickKit(config) {
   const preset = config.preset || "standard";
+  const document = cleanDocument(config.document);
+  const niche = String(config.niche || "").trim() || (document ? DOCUMENT_NICHE : "");
+  if (!niche) throw new Error("Indica tu nicho o adjunta un documento con la información del negocio.");
+  const briefKey = `${niche}|${config.notes || ""}|${document ? createHash("sha1").update(document).digest("hex").slice(0, 12) : ""}`;
   const progress = (step, message) => config.onProgress?.({ step, message });
 
   if (!config.force) {
-    const recent = await findRecentRun(config.url, `${config.niche}|${config.notes || ""}`, `quick-${preset}`, 120);
+    const recent = await findRecentRun(config.url, briefKey, `quick-${preset}`, 120);
     if (recent) {
       try {
         progress("cache", "Extracción reciente encontrada.");
@@ -45,7 +68,7 @@ export async function runQuickKit(config) {
     if (!robots.allowed) throw new Error(`${robots.reason || "robots.txt no permite analizar este sitio"}.`);
   }
 
-  const paths = createRunFolder(config.url, `${config.niche}|${config.notes || ""}`, `quick-${preset}`);
+  const paths = createRunFolder(config.url, briefKey, `quick-${preset}`);
   await ensureRunFolders(paths);
 
   progress("browser", "Abriendo el navegador de medición...");
@@ -66,16 +89,18 @@ export async function runQuickKit(config) {
   progress("kit", "Escribiendo el kit...");
   const generatedAt = new Date().toISOString();
   const kit = await writeKit({
-    runPath: paths.runPath, fingerprint, niche: config.niche, url: config.url,
-    clientBrief: config.notes ? { extra: config.notes } : null,
+    runPath: paths.runPath, fingerprint, niche, url: config.url,
+    clientBrief: config.notes || document
+      ? { extra: config.notes || "", document, documentName: String(config.documentName || "").replace(/[^\p{L}\p{N} ._()-]/gu, "").slice(0, 80) }
+      : null,
   });
   await Promise.all([
-    writeFile(join(paths.runPath, "run.json"), JSON.stringify({ url: config.url, niche: config.niche, generatedAt, fidelityScore: 0, technologies: [] })),
+    writeFile(join(paths.runPath, "run.json"), JSON.stringify({ url: config.url, niche, generatedAt, fidelityScore: 0, technologies: [] })),
     // prompt.md marca el run como completo para la caché de extracciones recientes.
     writeFile(join(paths.runPath, "prompt.md"), kit.prompt),
   ]);
   await pruneOldRuns(Number(process.env.MAX_RUNS) || 20).catch(() => {});
   await updateRunsIndex();
   log("info", "quickKit", "Kit generado", { run: paths.runName, errors: fingerprint.errors?.length || 0 });
-  return { run: paths.runName, url: config.url, niche: config.niche, generatedAt, prompt: kit.prompt, fingerprint };
+  return { run: paths.runName, url: config.url, niche, generatedAt, prompt: kit.prompt, fingerprint };
 }

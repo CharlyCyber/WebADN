@@ -29,16 +29,27 @@
 
       <!-- 1 · Extraer -->
       <main class="view is-active" id="view-extract">
-        <h1>Extraer</h1>
+        <div class="hero">
+          <h1>Extraer</h1>
+          <div class="helix" id="helix" aria-hidden="true"></div>
+        </div>
         <form class="card form-card" id="extractForm">
           <label class="field">
             <span>Web de referencia</span>
             <input id="url" name="url" type="url" inputmode="url" placeholder="https://sitio-que-te-gusta.com" autocomplete="url" required />
           </label>
-          <label class="field">
-            <span>Tu nicho</span>
-            <input id="niche" name="niche" type="text" placeholder="clínica dental premium" maxlength="200" required />
-          </label>
+          <div class="field">
+            <span id="bizLabel">Tu negocio</span>
+            <div class="seg seg-wide" role="tablist" aria-labelledby="bizLabel">
+              <button type="button" role="tab" class="is-active" data-biz="niche" aria-selected="true">Escribir nicho</button>
+              <button type="button" role="tab" data-biz="pdf" aria-selected="false">Adjuntar PDF</button>
+            </div>
+            <input id="niche" name="niche" type="text" placeholder="clínica dental premium" maxlength="200" aria-label="Tu nicho" required />
+            <div class="drop" id="pdfBox" hidden>
+              <input id="pdfFile" type="file" accept="application/pdf,.pdf" aria-label="PDF con la información del negocio" />
+              <p id="pdfStatus">Elige un PDF con la información de tu negocio (servicios, textos, contacto). Se lee en este dispositivo; el archivo no se sube.</p>
+            </div>
+          </div>
           <details class="more">
             <summary>Opciones</summary>
             <label class="field">

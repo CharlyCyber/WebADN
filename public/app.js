@@ -118,14 +118,81 @@ function progressUI(prefix) {
 // ---------- 1 · Extraer ----------
 const extractProgress = progressUI("extract");
 
+// Negocio: o se escribe el nicho o se adjunta un PDF. En ambos casos solo alimenta
+// el contenido del prompt; la medición de la referencia es la misma.
+let bizMode = "niche";
+let pdfDoc = null; // { name, text, pages }
+const MAX_DOC_CHARS = 12000;
+
+function setBizMode(mode) {
+  bizMode = mode;
+  $$("[data-biz]").forEach((b) => { const on = b.dataset.biz === mode; b.classList.toggle("is-active", on); b.setAttribute("aria-selected", String(on)); });
+  $("#niche").hidden = mode !== "niche";
+  $("#niche").required = mode === "niche";
+  $("#pdfBox").hidden = mode !== "pdf";
+}
+$$("[data-biz]").forEach((b) => b.addEventListener("click", () => setBizMode(b.dataset.biz)));
+
+async function readPdf(file) {
+  const pdfjs = await import("/vendor/pdfjs/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.mjs";
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
+  const parts = [];
+  let length = 0;
+  const pages = Math.min(pdf.numPages, 40);
+  for (let n = 1; n <= pages && length < MAX_DOC_CHARS; n++) {
+    const content = await (await pdf.getPage(n)).getTextContent();
+    let line = "";
+    for (const item of content.items) {
+      line += item.str;
+      if (item.hasEOL) { parts.push(line.trim()); length += line.length + 1; line = ""; } else if (item.str && !item.str.endsWith(" ")) line += " ";
+    }
+    if (line.trim()) { parts.push(line.trim()); length += line.length + 1; }
+    parts.push("");
+  }
+  await pdf.destroy();
+  return { text: parts.join("\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_DOC_CHARS), pages: pdf.numPages };
+}
+
+$("#pdfFile").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  const status = $("#pdfStatus");
+  pdfDoc = null;
+  $("#pdfBox").classList.remove("is-ready", "is-error");
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) { status.textContent = "El PDF pesa más de 25 MB. Usa uno más ligero."; $("#pdfBox").classList.add("is-error"); return; }
+  status.textContent = "Leyendo el PDF…";
+  try {
+    const { text, pages } = await readPdf(file);
+    if (text.replace(/\s/g, "").length < 40) {
+      status.textContent = "Este PDF no tiene texto seleccionable (parece escaneado). Usa uno con texto o escribe el nicho.";
+      $("#pdfBox").classList.add("is-error");
+      return;
+    }
+    pdfDoc = { name: file.name, text, pages };
+    status.textContent = `${file.name} · ${pages} página${pages === 1 ? "" : "s"} · ${text.length.toLocaleString()} caracteres leídos${text.length >= MAX_DOC_CHARS ? " (recortado al máximo)" : ""}`;
+    $("#pdfBox").classList.add("is-ready");
+  } catch (error) {
+    status.textContent = `No se pudo leer el PDF: ${error.message || "archivo no válido"}`;
+    $("#pdfBox").classList.add("is-error");
+  }
+});
+
 $("#extractForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
+  if (bizMode === "pdf" && !pdfDoc) {
+    $("#pdfStatus").textContent = "Elige primero un PDF con texto, o cambia a «Escribir nicho».";
+    $("#pdfBox").classList.add("is-error");
+    return;
+  }
+  const business = bizMode === "pdf" ? { document: pdfDoc.text, documentName: pdfDoc.name } : { niche: data.get("niche") };
   extractProgress.start("Despertando el navegador de medición…");
+  document.body.classList.add("is-working");
   let result = null;
   try {
     await postStream("/api/extract", {
-      url: data.get("url"), niche: data.get("niche"), notes: data.get("notes") || "",
+      url: data.get("url"), ...business, notes: data.get("notes") || "",
       force: data.get("force") === "on", ignoreRobots: data.get("ignoreRobots") === "on",
     }, (type, payload) => {
       if (type === "progress") extractProgress.say(payload.message);
@@ -138,6 +205,8 @@ $("#extractForm").addEventListener("submit", async (event) => {
     setView("kit");
   } catch (error) {
     extractProgress.stop(`No se pudo extraer: ${error.message}`);
+  } finally {
+    document.body.classList.remove("is-working");
   }
 });
 
@@ -210,7 +279,7 @@ function renderKit() {
   const moves = (m.reveals || 0) + (m.scrubs || 0) + (m.pins || 0) + (m.loops || 0);
 
   $("#kitTitle").textContent = hostOf(kit.url);
-  $("#kitLead").textContent = `Adaptado a «${kit.niche}». Copia el prompt, pégalo en tu IA y, cuando tengas el sitio publicado, mídelo.`;
+  $("#kitLead").textContent = `Contenido para ${/documento adjunto/.test(kit.niche || "") ? "el negocio de tu PDF" : `«${kit.niche}»`}; el diseño es el medido en la referencia. Copia el prompt, pégalo en tu IA y, cuando tengas el sitio publicado, mídelo.`;
   $("#kitStats").innerHTML = `
     <div class="stat"><span>Secciones</span><strong>${(d.sections || []).length}</strong><em>${Object.keys(fp.viewports || {}).length === 2 ? "escritorio y móvil" : esc(Object.keys(fp.viewports || {}).join(", "))}</em></div>
     <div class="stat"><span>Animaciones</span><strong>${moves}</strong><em>${m.reveals || 0} entradas · ${(m.scrubs || 0) + (m.pins || 0)} de scroll · ${m.loops || 0} bucles</em></div>
@@ -295,6 +364,7 @@ $("#measureForm").addEventListener("submit", async (event) => {
   if (!kit) return;
   const data = new FormData(event.currentTarget);
   measureProgress.start("Abriendo tu sitio en el navegador de medición…");
+  document.body.classList.add("is-working");
   let result = null;
   try {
     await postStream("/api/compare", { run: kit.run, buildUrl: data.get("buildUrl"), ignore: data.getAll("ignore"), fingerprint: kit.fingerprint }, (type, payload) => {
@@ -308,6 +378,8 @@ $("#measureForm").addEventListener("submit", async (event) => {
     renderReport();
   } catch (error) {
     measureProgress.stop(`No se pudo medir: ${error.message}`);
+  } finally {
+    document.body.classList.remove("is-working");
   }
 });
 
@@ -363,6 +435,61 @@ function renderReport() {
   $$("#report img.shot").forEach((img) => img.addEventListener("error", () => { img.closest("figure")?.remove(); }, { once: true }));
   $("#report").scrollIntoView({ behavior: "smooth", block: "start" });
 }
+
+// ---------- 3D ----------
+// Hélice de ADN (CSS 3D) y relieve: las tarjetas se inclinan con el puntero en
+// escritorio y con el scroll en pantallas táctiles. Solo transforms; se desactiva
+// con prefers-reduced-motion.
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+(function buildHelix() {
+  const helix = $("#helix");
+  if (!helix) return;
+  const RUNGS = 14;
+  helix.innerHTML = Array.from({ length: RUNGS }, (_, i) => `<div class="rung" style="--i:${i};--n:${RUNGS}"><i></i><b></b><i></i></div>`).join("");
+})();
+
+(function tilt3d() {
+  if (reduceMotion) return;
+  const SELECTOR = ".card, .stat, .sheet";
+  const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+  if (fine) {
+    let current = null;
+    document.addEventListener("pointermove", (event) => {
+      const el = event.target.closest?.(SELECTOR);
+      if (current && current !== el) { current.style.removeProperty("--rx"); current.style.removeProperty("--ry"); current.classList.remove("is-tilting"); }
+      current = el;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const px = (event.clientX - r.left) / r.width - 0.5;
+      const py = (event.clientY - r.top) / r.height - 0.5;
+      const max = Math.min(7, 2600 / Math.max(r.width, r.height));
+      el.classList.add("is-tilting");
+      el.style.setProperty("--ry", `${(px * max).toFixed(2)}deg`);
+      el.style.setProperty("--rx", `${(-py * max).toFixed(2)}deg`);
+      el.style.setProperty("--gx", `${((px + 0.5) * 100).toFixed(1)}%`);
+      el.style.setProperty("--gy", `${((py + 0.5) * 100).toFixed(1)}%`);
+    }, { passive: true });
+  } else {
+    // táctil: cada tarjeta se inclina según su posición en pantalla al hacer scroll
+    let queued = false;
+    const update = () => {
+      queued = false;
+      const vh = innerHeight;
+      for (const el of $$(".view.is-active .card, .view.is-active .stat, .view.is-active .sheet")) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom < -80 || r.top > vh + 80) continue;
+        const off = Math.max(-1, Math.min(1, (r.top + Math.min(r.height, vh) / 2 - vh / 2) / (vh / 2)));
+        el.style.setProperty("--rx", `${(off * -5).toFixed(2)}deg`);
+      }
+    };
+    const request = () => { if (!queued) { queued = true; requestAnimationFrame(update); } };
+    addEventListener("scroll", request, { passive: true });
+    addEventListener("resize", request, { passive: true });
+    new MutationObserver(request).observe($(".app"), { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
+    request();
+  }
+})();
 
 // ---------- arranque ----------
 fetch("/api/config").then((r) => (r.ok ? r.json() : null)).then((cfg) => {
