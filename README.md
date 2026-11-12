@@ -110,6 +110,12 @@ Abre `http://127.0.0.1:4173`. Son tres pasos: **Extraer** (URL + nicho), **Kit**
 prompt o descargar el `.zip`) y **Medir** (nota de fidelidad, correcciones para pegar a tu IA y
 capturas lado a lado). La interfaz es responsive y guarda los últimos kits en el navegador.
 
+En **Extraer** eliges cómo describir tu negocio: **Escribir nicho** (una frase) o **Adjuntar PDF**
+con su información (servicios, textos, contacto). El texto del PDF se lee en tu dispositivo —el
+archivo no se sube— y se usa solo como contenido: ni el nicho ni el PDF cambian lo medido en la
+referencia. El prompt incluye además un **plano por sección** (posición, ancho, tipografía y
+agrupación de cada elemento en escritorio y móvil) y las fuentes web detectadas.
+
 El dashboard usa una extracción ligera (solo la sonda de huella y el kit). El pipeline clásico
 completo, con el brief largo, sigue disponible desde el CLI.
 

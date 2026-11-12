@@ -14,7 +14,8 @@ ENV NODE_ENV=production \
     NODE_OPTIONS=--max-old-space-size=256
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+# --omit=optional: pdfjs-dist solo se sirve al navegador; su binario de canvas para Node no hace falta.
+RUN npm ci --omit=dev --omit=optional --ignore-scripts
 
 COPY src ./src
 COPY public ./public

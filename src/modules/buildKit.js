@@ -44,6 +44,42 @@ function typeTable(d, m) {
   return rows.join("\n");
 }
 
+const KIND = { h1: "H1", h2: "H2", h3: "H3", h4: "H4", h5: "H5", h6: "H6", text: "Texto", button: "Botón", link: "Enlace", img: "Imagen", video: "Vídeo", canvas: "Canvas", svg: "SVG", card: "Tarjeta", field: "Campo" };
+const rad = (r) => (r === "pill" ? "píldora" : r ? `radio ${r}px` : "");
+
+function elementLine(e) {
+  const group = e.n > 1 ? `${e.n} × ` : "";
+  const bits = [`x ${e.x}% · ancho ${e.varW ? "medio " : ""}${e.w}%${e.varW ? " (cada uno según su texto)" : ""} · y ${e.y}px · alto ${e.h}px`];
+  if (e.n > 1 && e.dir === "row") bits.push(`en fila, separación ${e.gap}% (el grupo ocupa ${e.span}% del ancho)`);
+  if (e.n > 1 && e.dir === "column") bits.push(`apilados, separación ${e.gapY}px`);
+  if (e.fs) bits.push(`${e.fs}px${e.fw ? `/${e.fw}` : ""}${e.font ? ` ${e.font}` : ""}${e.lh ? `, interlineado ${e.lh}` : ""}${e.ls ? `, tracking ${e.ls}em` : ""}${e.upper ? ", mayúsculas" : ""}`);
+  if (e.lines) bits.push(`${e.lines} línea(s), ~${e.chars} caracteres${e.align && e.align !== "left" ? `, alineado ${e.align}` : ""}`);
+  if (e.color) bits.push(`color ${e.color}`);
+  if (e.bg || e.bgImage) bits.push(`fondo ${e.bg || ""}${e.bgImage ? ` ${e.bgImage === "gradient" ? "degradado" : "imagen"}` : ""}`.replace(/\s+/g, " ").trim());
+  if (e.border) bits.push(`borde ${e.border}`);
+  if (e.shadow) bits.push("con sombra");
+  if (e.radius) bits.push(rad(e.radius));
+  if (e.padX) bits.push(`padding lateral ${e.padX}px`);
+  if (e.pad) bits.push(`padding ${e.pad}px`);
+  if (e.ratio) bits.push(`proporción ${e.ratio}:1${e.fit && e.fit !== "fill" ? `, object-fit ${e.fit}` : ""}`);
+  return `  - ${group}${KIND[e.k] || e.k}: ${bits.join(" · ")}`;
+}
+
+function blueprintBlock(s, ms) {
+  const L = [];
+  if (s.elements?.length) {
+    const c = s.container;
+    L.push(`- Plano en escritorio (x/ancho en % del ancho de pantalla; y/alto en px desde el inicio de la sección)${c ? ` · márgenes laterales del contenido: ${c.left}px izq. / ${c.right}px der.` : ""}:`);
+    L.push(...s.elements.map(elementLine));
+  }
+  if (ms?.elements?.length) {
+    const c = ms.container;
+    L.push(`- Plano en móvil (390px)${c ? ` · márgenes laterales: ${c.left}px / ${c.right}px` : ""}:`);
+    L.push(...ms.elements.slice(0, 10).map(elementLine));
+  }
+  return L;
+}
+
 function sectionBlock(s, ms) {
   const L = [];
   L.push(`### Sección ${s.index + 1} — ${s.role}${s.desc ? ` · \`${s.desc.split(" ")[0]}\`` : ""}`);
@@ -52,6 +88,7 @@ function sectionBlock(s, ms) {
   L.push(`- Layout: ${s.cols} columna(s) en escritorio${ms ? `, ${ms.cols} en móvil` : ""} · titular alineado ${fmt(s.align)} · aire arriba ${fmt(s.padTop, "px")} / abajo ${fmt(s.padBottom, "px")}${ms ? ` (móvil ${fmt(ms.padTop, "px")} / ${fmt(ms.padBottom, "px")})` : ""}`);
   if (s.headings?.length) L.push(`- Titulares: ${s.headings.map((h) => `${h.tag} ${h.size}px ${h.family} ${h.weight}, ${h.lines} línea(s), ~${h.chars} caracteres`).join(" · ")}${ms?.maxFont ? ` (en móvil el mayor mide ${ms.maxFont}px)` : ""}`);
   else if (s.maxFont) L.push(`- Texto mayor: ${s.maxFont}px${ms?.maxFont ? ` (móvil ${ms.maxFont}px)` : ""}`);
+  L.push(...blueprintBlock(s, ms));
   const c = s.counts || {};
   L.push(`- Contenido a rellenar: ~${s.chars || 0} caracteres de texto, ${c.images || 0} imagen(es), ${c.videos || 0} vídeo(s), ${c.canvas || 0} canvas, ${c.buttons || 0} botón(es), ${c.links || 0} enlace(s)`);
   const m = s.motion;
@@ -116,16 +153,28 @@ function effectsLine(e = {}) {
 
 function clientBriefBlock(brief) {
   if (!brief) return "";
-  const L = ["## Brief del cliente", ""];
-  if (brief.brandName) L.push(`- Marca: ${brief.brandName}`);
-  if (brief.audience) L.push(`- Audiencia: ${brief.audience}`);
-  if (brief.tone) L.push(`- Tono: ${brief.tone}`);
+  const L = [];
+  const meta = [];
+  if (brief.brandName) meta.push(`- Marca: ${brief.brandName}`);
+  if (brief.audience) meta.push(`- Audiencia: ${brief.audience}`);
+  if (brief.tone) meta.push(`- Tono: ${brief.tone}`);
   if (Array.isArray(brief.sections) && brief.sections.length) {
-    L.push("- Secciones que pide el cliente (encájalas en los roles de la referencia):");
-    for (const s of brief.sections) L.push(`  - ${s.name || "Sección"}${s.copy ? `: ${s.copy}` : ""}`);
+    meta.push("- Secciones que pide el cliente (encájalas en los roles de la referencia):");
+    for (const s of brief.sections) meta.push(`  - ${s.name || "Sección"}${s.copy ? `: ${s.copy}` : ""}`);
   }
-  if (brief.extra || brief.extraBrief) L.push("", String(brief.extra || brief.extraBrief));
-  return L.length > 2 ? L.join("\n") + "\n" : "";
+  const notes = String(brief.extra || brief.extraBrief || "").trim();
+  if (meta.length || notes) {
+    L.push("## Notas del cliente", "", ...meta);
+    if (notes) L.push(meta.length ? "" : null, notes);
+    L.push("");
+  }
+  const doc = String(brief.document || "").trim();
+  if (doc) {
+    L.push(`## Información del negocio${brief.documentName ? ` (extraída de «${brief.documentName}»)` : ""}`, "");
+    L.push("Usa este documento SOLO como fuente del contenido: nombre, servicios, textos, datos de contacto, tono. Si menciona colores, tipografías, estilos o estructura de página, ignóralo: el diseño lo dicta la referencia medida. Si falta contenido para alguna sección, redáctalo coherente con el negocio; si sobra, resume para que ocupe el espacio medido.", "");
+    L.push("<documento_del_negocio>", doc, "</documento_del_negocio>", "");
+  }
+  return L.filter((x) => x !== null).join("\n");
 }
 
 export function composeKitPrompt({ fingerprint, niche, url, clientBrief = null }) {
@@ -139,17 +188,20 @@ export function composeKitPrompt({ fingerprint, niche, url, clientBrief = null }
   if (!stack.length) stack.push("CSS + IntersectionObserver bastan: la referencia no usa librerías de animación");
   const colors = d.color || {};
   const L = [];
+  const src = d.type?.sources;
   L.push(`# Encargo: sitio para «${niche}» con el sistema visual de ${url}`, "");
   L.push("Eres un desarrollador front-end sénior especializado en sitios de nivel Awwwards. Vas a construir un sitio NUEVO para el nicho indicado que reproduzca el sistema visual y de movimiento de la referencia: mismas proporciones, ritmo, tipografía, color, animaciones, scroll y hovers. Todos los valores de este documento fueron MEDIDOS en un navegador real; no los sustituyas por valores «parecidos».", "");
   L.push("## Reglas", "");
   L.push("1. **Fuente de verdad:** `spec.json` (medidas exactas) y `screenshots/` (una captura por sección, escritorio y móvil). Este documento es su resumen legible; si no tienes acceso a los archivos, trabaja solo con él.");
-  L.push("2. **Qué se conserva:** estructura y orden de secciones, alturas, columnas, escala tipográfica, paleta, radios, efectos, cada animación (propiedades, duración, retardo, easing), comportamiento de scroll (pins, parallax, horizontal) y hovers.");
+  L.push("2. **Qué se conserva (intocable):** estructura y orden de secciones, alturas, el plano de cada sección (posición y tamaño de cada elemento), escala tipográfica, paleta, radios, efectos, cada animación (propiedades, duración, retardo, easing), comportamiento de scroll (pins, parallax, horizontal) y hovers.");
+  L.push("   **El nicho no cambia el diseño.** No adaptes colores, tipografías, formas, espaciados ni animaciones al sector, a la marca del cliente ni a lo que «pegaría» con el negocio: es el contenido el que se adapta al diseño medido, nunca al revés. Ante la duda entre el nicho y una medida, gana la medida.");
   L.push(`3. **Qué se sustituye:** todo el texto, imágenes, logos y nombres. Escribe contenido original para «${niche}» que ocupe aproximadamente el mismo espacio (mismo número de líneas en titulares, misma cantidad de tarjetas/elementos). No copies copy ni assets de la referencia.`);
-  L.push("4. **Fuentes:** si la familia exacta no es de uso libre, elige la alternativa libre más parecida de la misma clasificación (serif/sans/mono) y ajusta tamaño y tracking para igualar la mancha.");
+  L.push("4. **Fuentes:** carga las mismas familias que la referencia cuando sean de uso libre (ver «Tipografía»). Solo si la familia exacta no lo es, elige la alternativa libre más parecida de la misma clasificación (serif/sans/mono) y ajusta tamaño y tracking para igualar la mancha.");
   L.push("5. **Responsive:** el diseño móvil (390px) está medido aparte; respeta sus valores, no los derives del escritorio.");
-  L.push("6. Respeta `prefers-reduced-motion` y anima solo `transform`/`opacity`/`clip-path`.", "");
+  L.push("6. Respeta `prefers-reduced-motion` y anima solo `transform`/`opacity`/`clip-path`.");
+  L.push("7. **Orden de trabajo:** (a) variables de color, tipografía y radios; (b) esqueleto de secciones con sus alturas y fondos; (c) cada sección siguiendo su plano, primero en escritorio y luego en móvil; (d) animaciones y scroll; (e) hovers. No añadas secciones, adornos ni efectos que no estén medidos aquí.", "");
   L.push("## Verificación (obligatoria)", "");
-  L.push("El resultado se mide con la misma sonda que midió la referencia. Con el sitio servido en local:", "", "```bash", "webadn compare --ref ./fingerprint.json --build http://localhost:5173", "```", "");
+  L.push("El resultado se mide con la misma sonda que midió la referencia: publica el sitio y pega su URL en la pestaña «Medir» del panel de WebADN (o, con terminal, ejecuta el comando):", "", "```bash", "webadn compare --ref ./fingerprint.json --build http://localhost:5173", "```", "");
   L.push("Devuelve una puntuación 0-100 por dimensión y la lista de diferencias ordenada por impacto. **Objetivo: ≥ 85.** Corrige de arriba abajo, vuelve a medir y repite hasta alcanzarlo. Si trabajas en un chat sin terminal, entrega el código y pide al usuario que pegue el informe.", "");
   const brief = clientBriefBlock(clientBrief);
   if (brief) L.push(brief);
@@ -164,6 +216,11 @@ export function composeKitPrompt({ fingerprint, niche, url, clientBrief = null }
   L.push(`- Transiciones CSS habituales: ${(d.motion?.tokens || []).slice(0, 4).map((t) => `${t.duration}ms ${t.easing} (×${t.count})`).join(" · ") || "—"}`);
   L.push(`- Scroll: ${d.effects?.smoothScroll ? "suavizado por librería" : d.effects?.cssSmoothScroll ? "scroll-behavior: smooth" : "nativo"}`, "");
   L.push("### Tipografía", "", typeTable(d, m), "");
+  if (src?.loaded?.length || src?.links?.length) {
+    L.push(`Fuentes web que carga la referencia${src.provider ? ` (${src.provider})` : ""}: ${src.loaded.map((f) => `${f.family} [${f.weights.join(", ")}${f.italic ? ", itálica" : ""}]`).join(" · ") || "ver enlaces"}.`);
+    for (const h of src.links || []) L.push(`- ${h}`);
+    L.push("");
+  }
   if (d.type?.display) L.push(`Texto más grande de la página: ${d.type.display.size}px ${d.type.display.family}${m?.type?.display ? ` (móvil ${m.type.display.size}px)` : ""}.`, "");
   L.push(`## Secciones (${d.sections.length}) — página de ${d.page.heightVh} alturas de pantalla${m ? ` en escritorio, ${m.page.heightVh} en móvil` : ""}`, "");
   d.sections.forEach((s, i) => { L.push(sectionBlock(s, m?.sections?.[i] && m.sections.length === d.sections.length ? m.sections[i] : null), ""); });
