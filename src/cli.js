@@ -36,7 +36,39 @@ if (args[0] === "list") {
   process.exit(0);
 }
 
-// Subcomando: compare
+// Subcomando: mcp (servidor MCP por stdio para Claude Code, Cursor, etc.)
+if (args[0] === "mcp") {
+  const { startMcpServer } = await import("./mcp.js");
+  await startMcpServer();
+  await new Promise(() => {});
+}
+
+// Subcomando: compare --ref <referencia> --build <url>  → mide el build contra la referencia
+if (args[0] === "compare" && args.some((a) => a === "--ref" || a === "--build")) {
+  const get = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
+  const ref = get("--ref"), buildUrl = get("--build");
+  if (!ref || !buildUrl) {
+    console.error("Uso: webadn compare --ref <url | fingerprint.json | carpeta kit | run> --build <url> [--ignore color,effects] [--depth fast|standard|surgical] [--out carpeta] [--json] [--min 85]");
+    process.exit(1);
+  }
+  const { runCompare } = await import("./compare.js");
+  try {
+    const { report, markdown, outDir } = await runCompare({
+      ref, buildUrl, outDir: get("--out"), depth: get("--depth"),
+      ignore: (get("--ignore") || "").split(",").map((s) => s.trim()).filter(Boolean),
+      onProgress: (p) => process.stderr.write(`· ${p.message}\n`)
+    });
+    process.stdout.write(args.includes("--json") ? JSON.stringify(report, null, 2) + "\n" : markdown);
+    process.stderr.write(`\nInforme guardado en: ${outDir}\n`);
+    const min = Number(get("--min"));
+    process.exit(Number.isFinite(min) && min > 0 && report.score < min ? 2 : 0);
+  } catch (err) {
+    console.error("WebADN compare falló: " + err.message);
+    process.exit(1);
+  }
+}
+
+// Subcomando: compare <run1> <run2> (metadatos de dos extracciones)
 if (args[0] === "compare") {
   const [run1Path, run2Path] = args.slice(1);
   if (!run1Path || !run2Path) {
@@ -123,6 +155,10 @@ runOrchestrator({
     if (result.artifactPath) {
       process.stderr.write("\nArtifacts saved to: " + result.artifactPath + "\n");
     }
+    if (result.kit?.path) {
+      process.stderr.write("Build kit (PROMPT.md + spec.json + fingerprint.json): " + result.kit.path + "\n");
+      process.stderr.write("Verifica tu build con: webadn compare --ref \"" + result.kit.path + "\" --build http://localhost:5173\n");
+    }
   })
   .catch((error) => {
     console.error("WebADN extraction failed: " + error.message);
@@ -130,6 +166,11 @@ runOrchestrator({
       console.error(error);
     }
     process.exitCode = 1;
+  })
+  .finally(async () => {
+    // Cierra los navegadores del pool: sin esto el proceso queda vivo tras terminar.
+    const { drainBrowserPool } = await import("./support/browserPool.js");
+    await drainBrowserPool();
   });
 
 function parseArgs(args) {
@@ -165,7 +206,7 @@ function parseArgs(args) {
 }
 
 function printHelp() {
-  process.stdout.write("WebADN Surgical Extractor & Context Engine\n\nUsage:\n  node ./src/cli.js --url <url> --niche <niche> [--video <path>] [--dry-run] [--output <format>]\n\nOptions:\n  -u, --url       Reference URL to inspect\n  -n, --niche     Business niche to adapt the design into\n  -v, --video     Optional UI/UX motion reference video\n  -o, --output    Output format: markdown (default), json, html\n      --dry-run   Skip live scraping and use a deterministic local sample\n      --headless  Run browser in headless mode, default true\n      --timeout   Scraper timeout in milliseconds\n      --ignore-robots   Skip robots.txt verification (only if you have owner permission)\n      --force, -f       Ignore recent run cache\n      --download-binaries Enable download of image/font assets (legal warning)\n      --no-cro    Disable CRO block injection (preserve reference section order)\n      --generate  Generate HTML/CSS/JS directly from extracted data (bypass prompt)\n");
+  process.stdout.write("WebADN Surgical Extractor & Context Engine\n\nUsage:\n  node ./src/cli.js --url <url> --niche <niche> [--video <path>] [--dry-run] [--output <format>]\n\nOptions:\n  -u, --url       Reference URL to inspect\n  -n, --niche     Business niche to adapt the design into\n  -v, --video     Optional UI/UX motion reference video\n  -o, --output    Output format: markdown (default, kit prompt), brief (legacy mega-brief), json, html\n      --dry-run   Skip live scraping and use a deterministic local sample\n      --headless  Run browser in headless mode, default true\n      --timeout   Scraper timeout in milliseconds\n      --ignore-robots   Skip robots.txt verification (only if you have owner permission)\n      --force, -f       Ignore recent run cache\n      --download-binaries Enable download of image/font assets (legal warning)\n      --no-cro    Disable CRO block injection (preserve reference section order)\n      --generate  Generate HTML/CSS/JS directly from extracted data (bypass prompt)\n\nSubcommands:\n  compare --ref <url|fingerprint.json|kit|run> --build <url>   Measure a build against the reference (0-100 + fix list)\n  mcp                                                           Start the MCP server (stdio) for Claude Code / Cursor\n  list                                                          List previous runs\n");
 }
 
 function formatOutput(result, format) {
@@ -182,8 +223,10 @@ function formatOutput(result, format) {
     return generateHtmlViewer(result);
   }
   
-  // Default: markdown
-  return result.prompt;
+  if (format === "brief") return result.prompt;
+
+  // Default: el prompt del kit (medido); si no hay kit (modo demo), el brief clásico.
+  return result.kit?.prompt || result.prompt;
 }
 
 function generateHtmlViewer(result) {

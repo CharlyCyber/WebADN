@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { basename, extname, join, normalize, relative as pathRelative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runOrchestrator } from "./orchestrator.js";
@@ -8,6 +8,9 @@ import { validatePublicHttpUrl } from "./support/urlSafety.js";
 import { RUNS_DIR } from "./support/artifacts.js";
 import { Semaphore } from "./support/jobQueue.js";
 import { ensureDependencies } from "./support/autoInstall.js";
+import { runCompare } from "./compare.js";
+import { KIT_DIR, zipKit } from "./modules/buildKit.js";
+import { DIMENSIONS, DIMENSION_LABELS } from "./modules/fingerprintCompare.js";
 
 await ensureDependencies();
 
@@ -18,6 +21,14 @@ const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 2);
 const MAX_QUEUE = Number(process.env.MAX_QUEUE || 10);
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "false").toLowerCase() === "true";
 const AUTH_TOKEN = process.env.AUTH_TOKEN || "";
+// HOST=0.0.0.0 abre el dashboard a la red local (p. ej. para usarlo desde el móvil).
+const HOST = process.env.HOST || "127.0.0.1";
+const IS_LOCAL_ONLY = ["127.0.0.1", "localhost", "::1"].includes(HOST);
+const flag = (name, fallback) => (process.env[name] === undefined ? fallback : String(process.env[name]).toLowerCase() === "true");
+// Comparar contra http://localhost:PUERTO es el caso normal en tu máquina, pero en un
+// servidor expuesto permitiría sondear la red interna: ahí hay que activarlo a propósito.
+const ALLOW_LOCAL_BUILDS = flag("ALLOW_LOCAL_BUILDS", IS_LOCAL_ONLY);
+const ALLOW_EMBED = flag("ALLOW_EMBED", false);
 const extractionSemaphore = new Semaphore(MAX_CONCURRENT);
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
@@ -64,10 +75,10 @@ function checkRateLimit(ip) {
 }
 
 const SECURITY_HEADERS = {
-  "Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; script-src 'self'",
+  "Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; script-src 'self'",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
-  "X-Frame-Options": "DENY",
+  ...(ALLOW_EMBED ? {} : { "X-Frame-Options": "DENY" }),
 };
 
 function setSecurityHeaders(response) {
@@ -111,7 +122,19 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && pathname === "/api/compare") {
+      await handleCompare(request, response);
+      return;
+    }
+
     if (request.method === "POST" && pathname === "/api/shutdown") {
+      // Apagar el servidor solo se permite desde la propia máquina.
+      const remote = request.socket.remoteAddress || "";
+      const fromLoopback = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
+      if (!IS_LOCAL_ONLY || !fromLoopback || request.headers["x-forwarded-for"]) {
+        sendJson(response, 403, { error: "Solo disponible desde la máquina que ejecuta WebADN." });
+        return;
+      }
       handleShutdown(response);
       return;
     }
@@ -119,6 +142,18 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET") {
       if (pathname === "/api/runs") {
         await handleListRuns(request, response);
+        return;
+      }
+      if (pathname === "/api/config") {
+        sendJson(response, 200, { localOnly: IS_LOCAL_ONLY, allowLocalBuilds: ALLOW_LOCAL_BUILDS, dimensions: DIMENSION_LABELS });
+        return;
+      }
+      if (pathname === "/api/run") {
+        await handleGetRun(urlObj, response);
+        return;
+      }
+      if (pathname === "/api/kit") {
+        await handleKit(urlObj, response);
         return;
       }
       if (pathname === "/api/screenshots") {
@@ -139,8 +174,11 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`Dashboard ready at http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Dashboard ready at http://${IS_LOCAL_ONLY ? "127.0.0.1" : HOST}:${PORT}`);
+  if (!IS_LOCAL_ONLY && !AUTH_TOKEN) {
+    console.log("Aviso: el dashboard es accesible desde la red (HOST=" + HOST + ") sin AUTH_TOKEN.");
+  }
 });
 
 /**
@@ -234,6 +272,7 @@ async function handleExtract(request, response) {
       truncated: promptLen > 1_000_000,
       evidence: trimEvidenceForSSE(masterPrompt.evidence),
       fidelityScore: masterPrompt.fidelityScore,
+      kit: masterPrompt.kit ? { run: masterPrompt.kit.run, prompt: masterPrompt.kit.prompt } : null,
       generatedAt: new Date().toISOString()
     });
 
@@ -247,6 +286,110 @@ async function handleExtract(request, response) {
     } catch {
       // Intento mínimo de notificar error
     }
+  } finally {
+    clearInterval(heartbeat);
+    response.end();
+  }
+}
+
+function isSafeRunName(run) {
+  return typeof run === "string" && /^[A-Za-z0-9._-]{1,200}$/.test(run) && !run.includes("..");
+}
+
+/** GET /api/run?run=<run> → resultado guardado de una extracción (para el historial). */
+async function handleGetRun(urlObj, response) {
+  const run = urlObj.searchParams.get("run");
+  if (!isSafeRunName(run)) {
+    sendJson(response, 400, { error: "Parámetro run no válido." });
+    return;
+  }
+  const runPath = join(RUNS_DIR, run);
+  try {
+    const evidence = JSON.parse(await readFile(join(runPath, "evidence.json"), "utf8"));
+    const prompt = await readFile(join(runPath, "prompt.md"), "utf8").catch(() => "");
+    const kitPrompt = await readFile(join(runPath, KIT_DIR, "PROMPT.md"), "utf8").catch(() => null);
+    sendJson(response, 200, {
+      prompt,
+      artifactPath: runPath,
+      evidence: trimEvidenceForSSE(evidence),
+      fidelityScore: evidence.fidelityScore,
+      kit: kitPrompt ? { run, prompt: kitPrompt } : null
+    });
+  } catch {
+    sendJson(response, 404, { error: "Run no encontrado." });
+  }
+}
+
+/** GET /api/kit?run=<run>[&format=prompt|zip|compares] */
+async function handleKit(urlObj, response) {
+  const run = urlObj.searchParams.get("run");
+  const format = urlObj.searchParams.get("format") || "zip";
+  if (!isSafeRunName(run)) {
+    sendJson(response, 400, { error: "Parámetro run no válido." });
+    return;
+  }
+  const runPath = join(RUNS_DIR, run);
+  try {
+    if (format === "prompt") {
+      sendJson(response, 200, { run, prompt: await readFile(join(runPath, KIT_DIR, "PROMPT.md"), "utf8") });
+      return;
+    }
+    if (format === "compares") {
+      let names = [];
+      try { names = (await readdir(join(runPath, "compares"))).sort().reverse().slice(0, 20); } catch { /* aún sin mediciones */ }
+      const reports = [];
+      for (const name of names) {
+        try { reports.push({ id: name, report: JSON.parse(await readFile(join(runPath, "compares", name, "report.json"), "utf8")) }); } catch { /* incompleto */ }
+      }
+      sendJson(response, 200, { run, compares: reports });
+      return;
+    }
+    const zip = await zipKit(runPath);
+    response.writeHead(200, {
+      "Content-Type": "application/zip",
+      "Content-Length": zip.length,
+      "Content-Disposition": `attachment; filename="webadn-kit-${run.slice(0, 60)}.zip"`
+    });
+    response.end(zip);
+  } catch (error) {
+    sendJson(response, 404, { error: error.code === "ENOENT" ? "Este run no tiene kit." : error.message });
+  }
+}
+
+/** POST /api/compare {run, buildUrl, ignore[]} → SSE con progreso e informe de fidelidad. */
+async function handleCompare(request, response) {
+  const body = await readJsonBody(request);
+  if (!isSafeRunName(body.run) || !body.buildUrl) {
+    sendJson(response, 400, { error: "Hacen falta el run de referencia y la URL del build." });
+    return;
+  }
+  let buildUrl;
+  try {
+    const parsed = new URL(String(body.buildUrl));
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("La URL del build debe ser http(s).");
+    buildUrl = ALLOW_LOCAL_BUILDS ? parsed.toString() : await validatePublicHttpUrl(parsed.toString());
+  } catch (error) {
+    const hint = ALLOW_LOCAL_BUILDS ? "" : " Este servidor solo mide URLs públicas (ALLOW_LOCAL_BUILDS=true para permitir localhost).";
+    sendJson(response, 400, { error: error.message + hint });
+    return;
+  }
+  const ignore = Array.isArray(body.ignore) ? body.ignore.filter((d) => DIMENSIONS.includes(d)) : [];
+  if (extractionSemaphore.waiters.length >= MAX_QUEUE) {
+    sendJson(response, 429, { error: "Servidor ocupado. Inténtalo en unos minutos." });
+    return;
+  }
+
+  response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+  const send = (event, data) => { try { response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* cliente desconectado */ } };
+  const heartbeat = setInterval(() => { try { response.write(`: keep-alive ${Date.now()}\n\n`); } catch { /* idem */ } }, 10_000);
+  heartbeat.unref?.();
+  try {
+    const { report, markdown } = await extractionSemaphore.run(() => runCompare({
+      ref: join(RUNS_DIR, body.run), buildUrl, ignore, onProgress: (info) => send("progress", info)
+    }));
+    send("result", { run: body.run, report, markdown });
+  } catch (error) {
+    send("error", { message: error.message });
   } finally {
     clearInterval(heartbeat);
     response.end();

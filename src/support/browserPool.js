@@ -1,3 +1,6 @@
+import { launchBrowser } from "./launchBrowser.js";
+
+const POOL_ARGS = ["--js-flags=--max-old-space-size=512"];
 let pool = [];
 let poolSize = 0;
 let idleTimer = null;
@@ -13,13 +16,8 @@ function resetIdleTimer() {
 
 export async function initBrowserPool(size = 2) {
   if (pool.length >= size) return;
-  const { chromium } = await import("playwright");
-  const launchOpts = {
-    headless: true,
-    args: ["--disable-dev-shm-usage", "--no-sandbox", "--js-flags=--max-old-space-size=512"]
-  };
   const newBrowsers = await Promise.all(
-    Array.from({ length: size - pool.length }, () => chromium.launch(launchOpts))
+    Array.from({ length: size - pool.length }, () => launchBrowser({ extraArgs: POOL_ARGS }))
   );
   pool.push(...newBrowsers);
   poolSize = pool.length;
@@ -29,11 +27,7 @@ export async function initBrowserPool(size = 2) {
 export async function getBrowser() {
   resetIdleTimer();
   if (pool.length === 0) {
-    const { chromium } = await import("playwright");
-    const b = await chromium.launch({
-      headless: true,
-      args: ["--disable-dev-shm-usage", "--no-sandbox", "--js-flags=--max-old-space-size=512"]
-    });
+    const b = await launchBrowser({ extraArgs: POOL_ARGS });
     pool.push(b);
     poolSize = 1;
     return b;

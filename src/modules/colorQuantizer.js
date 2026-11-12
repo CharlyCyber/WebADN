@@ -19,7 +19,7 @@ import { inflateSync } from "node:zlib";
 // aparece, devolvemos null y el llamador hace fallback a la paleta CSS.
 // ---------------------------------------------------------------------------
 
-async function decodePng(buffer) {
+export async function decodePng(buffer) {
   // Validar firma PNG
   if (buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4e || buffer[3] !== 0x47) {
     return null;

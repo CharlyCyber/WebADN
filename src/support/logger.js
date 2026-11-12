@@ -19,7 +19,7 @@ export function log(level, phase, msg, extra = {}) {
 
   const cleanExtra = {};
   for (const [k, v] of Object.entries(extra)) {
-    if (k === "url" || k === "error" || (typeof v === "string" && v.startsWith("http"))) {
+    if (k === "url" || (typeof v === "string" && v.startsWith("http"))) {
       cleanExtra[k] = redactUrl(v);
     } else {
       cleanExtra[k] = v;
@@ -35,5 +35,6 @@ export function log(level, phase, msg, extra = {}) {
     ...cleanExtra,
   };
 
-  console.log(JSON.stringify(entry));
+  // stderr: stdout queda limpio para el prompt (CLI) y para JSON-RPC (MCP).
+  process.stderr.write(JSON.stringify(entry) + "\n");
 }

@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Surgical Web Extractor</title>
+    <title>WebADN — mide, construye y verifica</title>
+    <meta name="theme-color" content="#121212" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,9 +17,9 @@
     <main class="shell">
       <section class="mast">
         <div>
-          <p class="eyebrow">Surgical Extractor</p>
-          <h1>Prompt engine para diseccionar webs premium</h1>
-          <p class="mast-caption">Foundations / Dark Neumorphic &middot; Surface Tokens &middot; Border 1px subtle</p>
+          <p class="eyebrow">WebADN</p>
+          <h1>Mide una web premium, constrúyela para tu nicho y verifica el parecido</h1>
+          <p class="mast-caption">1 · Extraer el kit &middot; 2 · Construir con tu IA &middot; 3 · Medir la fidelidad (objetivo ≥ 85/100)</p>
         </div>
         <div class="status-plate" aria-live="polite">
           <span class="status-dot" id="statusDot"></span>
@@ -96,9 +97,9 @@
           <div class="field span-2">
             <label for="preset">Profundidad de análisis</label>
             <select id="preset" name="preset">
-              <option value="fast">Fast (30s) — Stack, colores, secciones</option>
-              <option value="standard">Standard (2min) — + Screenshots, motion</option>
-              <option value="surgical" selected>Surgical (5min) — + Assets, hovers, WebGL</option>
+              <option value="fast">Rápida (~1 min) — estructura, color, tipografía, animación básica</option>
+              <option value="standard" selected>Estándar (~2-3 min) — + hovers y animación detallada</option>
+              <option value="surgical">Quirúrgica (~5 min) — máxima resolución de scroll y assets</option>
             </select>
           </div>
 
@@ -109,7 +110,7 @@
 
           <button class="run-button" type="submit">
             <div class="spinner"></div>
-            <span>Extraer y generar prompt</span>
+            <span>Extraer y generar kit</span>
           </button>
         </form>
 
@@ -119,7 +120,7 @@
             <strong id="techCount">0</strong>
           </div>
           <div>
-            <span class="metric-label">Fidelity</span>
+            <span class="metric-label" title="Cuánta evidencia se pudo extraer de la referencia">Cobertura</span>
             <strong id="fidelityScore">-</strong>
           </div>
           <div>
@@ -132,6 +133,7 @@
           <div class="output-head">
             <div class="tab-bar" id="tabBar">
               <button class="tab active" data-tab="prompt">Prompt</button>
+              <button class="tab" data-tab="verify">Medir build</button>
               <button class="tab" data-tab="sections">Sections</button>
               <button class="tab" data-tab="styles">Styles</button>
               <button class="tab" data-tab="motion">Motion</button>
@@ -143,6 +145,7 @@
             <div class="output-actions">
               <button class="copy-button" id="copyButton" type="button">Copy</button>
               <button class="copy-button" id="downloadPrompt" type="button">Download</button>
+              <button class="copy-button" id="downloadKit" type="button" title="PROMPT.md + spec.json + fingerprint.json + capturas por sección">⬇ Kit .zip</button>
               <button class="copy-button" id="downloadEvidence" type="button">Evidence</button>
               <button class="copy-button" id="exportToAIStudio" type="button" title="Export to Google AI Studio">🚀 AI Studio</button>
               <button class="copy-button" id="resetButton" type="button" title="Borra formulario y resultados para empezar de cero">⟲ Reset</button>
@@ -150,6 +153,28 @@
           </div>
           <div class="tab-content">
             <pre id="outputPrompt" class="tab-pane active">El resultado aparecerá aquí.</pre>
+            <div id="outputVerify" class="tab-pane">
+              <form class="verify-form" id="verifyForm">
+                <p class="verify-intro">Sirve el sitio que ha construido tu IA y pega aquí su URL. WebADN lo mide con la misma sonda que midió la referencia y te dice qué falta, ordenado por impacto.</p>
+                <div class="field">
+                  <label for="buildUrl">URL de tu build</label>
+                  <input id="buildUrl" name="buildUrl" type="url" inputmode="url" placeholder="http://localhost:5173" required />
+                  <span class="field-hint" id="verifyHint"></span>
+                </div>
+                <fieldset class="chip-set">
+                  <legend>No puntuar (si tu nicho lo cambia a propósito)</legend>
+                  <label class="chip"><input type="checkbox" name="ignore" value="color" /><span>Color</span></label>
+                  <label class="chip"><input type="checkbox" name="ignore" value="typography" /><span>Tipografía</span></label>
+                  <label class="chip"><input type="checkbox" name="ignore" value="perceptual" /><span>Composición visual</span></label>
+                </fieldset>
+                <button class="run-button verify-button" id="verifyButton" type="submit">
+                  <div class="spinner"></div>
+                  <span>Medir fidelidad</span>
+                </button>
+                <p class="verify-status" id="verifyStatus" aria-live="polite"></p>
+              </form>
+              <div id="verifyReport" class="verify-report"></div>
+            </div>
             <pre id="outputSections" class="tab-pane">Section map will appear here.</pre>
             <pre id="outputStyles" class="tab-pane">CSS styles will appear here.</pre>
             <pre id="outputMotion" class="tab-pane">Motion recipes will appear here.</pre>

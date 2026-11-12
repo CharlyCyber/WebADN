@@ -212,7 +212,7 @@ function pickKeys(obj, keys) {
 export async function packageStructuredContext(evidence, artifactPath, url, niche) {
   if (!evidence) return;
 
-  const contextDir = join(artifactPath, "..", CONTEXT_DIR);
+  const contextDir = join(artifactPath, CONTEXT_DIR);
   await mkdir(contextDir, { recursive: true });
 
   const tasks = [
