@@ -1,4 +1,14 @@
-﻿# WebADN — Reverse Engineering & Context Compiler for AI Agents in IDEs
+<div align="center">
+  <img src="assets/readme-banner.svg" alt="" width="100%" />
+  <h1>WebADN — Reverse Engineering &amp; Context Compiler for AI Agents in IDEs</h1>
+  <p>
+  <a href="https://github.com/CharlyCyber/WebADN/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/CharlyCyber/WebADN/ci.yml?branch=main&amp;style=flat-square&amp;label=CI&amp;color=a8f01c&amp;labelColor=171c13" /></a>
+  <img alt="Top language" src="https://img.shields.io/github/languages/top/CharlyCyber/WebADN?style=flat-square&amp;color=a8f01c&amp;labelColor=171c13" />
+  <img alt="Stars" src="https://img.shields.io/github/stars/CharlyCyber/WebADN?style=flat-square&amp;color=a8f01c&amp;labelColor=171c13" />
+  <img alt="Last commit" src="https://img.shields.io/github/last-commit/CharlyCyber/WebADN?style=flat-square&amp;color=a8f01c&amp;labelColor=171c13" />
+  </p>
+</div>
+
 
 WebADN extrae el contexto profundo y exacto de sitios web de referencia y genera un paquete de archivos estructurado (gran contexto) que será consumido por agentes de IA en IDEs (Cursor, Claude Code) para generar sitios perfectos y adaptados a un nicho.
 
