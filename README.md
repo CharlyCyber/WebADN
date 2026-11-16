@@ -144,6 +144,8 @@ Guía y límites en
   firmada, 30 días) y los scripts con `Authorization: Bearer <AUTH_TOKEN>`.
 - Rate limit: máximo 5 peticiones POST por minuto por IP.
 
+**Despliegue seguro:** cualquier despliegue accesible fuera de `127.0.0.1` requiere `AUTH_TOKEN` de al menos 16 caracteres. Si falta o es demasiado corto, el servidor no arranca. Para acceso desde otros dispositivos de tu red local, configura también una contraseña antes de usar `HOST=0.0.0.0`.
+
 ## Variables de entorno
 
 Copia `.env.example` a `.env`. Variables disponibles:
@@ -234,3 +236,11 @@ Incluye tests de integración para:
 - Análisis de tokens de diseño
 - Cálculo de fidelity score
 - Composición del mega brief
+
+
+## Autor
+
+Desarrollado por **Charli Rodríguez — Charli AI**.
+
+- Portafolio: https://charli-ai-portfolio.vercel.app
+- GitHub: https://github.com/CharlyCyber
