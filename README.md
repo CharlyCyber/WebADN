@@ -1,4 +1,23 @@
 <div align="center">
+  <a href="https://unsplash.com/photos/laptop-and-phone-on-a-desk-with-coding-software-open-oYzjGQ7LCVE">
+    <img src="https://images.unsplash.com/photo-1778146476147-5f8d4bd03c79?auto=format&fit=crop&crop=entropy&w=1800&h=520&q=85&sat=-65&brightness=-10" alt="Estación de desarrollo web con código en pantalla para WebADN" width="100%" />
+  </a>
+</div>
+
+<p align="center">
+  <a href="https://github.com/CharlyCyber/WebADN"><img src="https://img.shields.io/github/actions/workflow/status/CharlyCyber/WebADN/ci.yml?branch=main&style=for-the-badge&label=CI&color=C7F36A&labelColor=111418" alt="CI" /></a>
+  <a href="https://github.com/CharlyCyber/WebADN"><img src="https://img.shields.io/github/stars/CharlyCyber/WebADN?style=for-the-badge&color=C7F36A&labelColor=111418" alt="Stars" /></a>
+  <a href="https://github.com/CharlyCyber/WebADN"><img src="https://img.shields.io/github/license/CharlyCyber/WebADN?style=for-the-badge&color=111418&labelColor=C7F36A" alt="License" /></a>
+  <a href="https://github.com/CharlyCyber/WebADN"><img src="https://img.shields.io/github/languages/top/CharlyCyber/WebADN?style=for-the-badge&color=C7F36A&labelColor=111418" alt="Language" /></a>
+</p>
+
+<p align="center">
+  <sub>Imagen de portada: <a href="https://unsplash.com/photos/laptop-and-phone-on-a-desk-with-coding-software-open-oYzjGQ7LCVE">Bayu Syaits / Unsplash</a> · Licencia Unsplash</sub>
+</p>
+
+<hr />
+
+<div align="center">
   <img src="assets/readme-banner.svg" alt="" width="100%" />
   <h1>WebADN — Reverse Engineering &amp; Context Compiler for AI Agents in IDEs</h1>
   <p>
