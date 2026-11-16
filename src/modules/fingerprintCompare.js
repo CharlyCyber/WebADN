@@ -386,6 +386,102 @@ function comparePerceptual(R, B, pairs, issues, vp) {
   return wavg(items);
 }
 
+// ---------- integridad de medios ----------
+/** Cuenta medios rotos en una huella (elementos del plano con `broken`). */
+function countBrokenMedia(vp) {
+  let broken = 0;
+  for (const s of vp.sections || []) {
+    for (const e of s.elements || []) {
+      if (e.broken) broken++;
+    }
+  }
+  return broken;
+}
+
+/**
+ * Verifica que el build no tenga medios rotos y que la cobertura de medios
+ * coincida con la referencia. Los builds con imágenes/vídeos rotos NO pueden
+ * superar el umbral de fidelidad.
+ */
+function checkMediaIntegrity(R, B, issues, vp) {
+  const refBroken = countBrokenMedia(R);
+  const buildBroken = countBrokenMedia(B);
+  // La referencia con medios rotos no se castiga a sí misma, pero sí se reporta.
+  if (refBroken > 0) {
+    issues.push({ severity: "low", dimension: "layout", viewport: vp, section: null, title: "La referencia tiene medios rotos (no punúa al build por esto)", expected: "medios cargados", actual: `${refBroken} medio(s) roto(s) en la referencia`, weight: 0.05 });
+  }
+  if (buildBroken > 0) {
+    issues.push({ severity: "high", dimension: "layout", viewport: vp, section: null, title: "Medios rotos en el build (imágenes/vídeos que no cargan)", expected: "todos los medios cargan correctamente", actual: `${buildBroken} medio(s) roto(s)`, weight: 0.25 * buildBroken });
+    return 0.8; // penaliza el layout: -20%
+  }
+  // Cobertura de medios: si la referencia tiene imágenes/video y el build no,
+  // castigar (el agente omitió el contenido visual).
+  const refMedia = (R.sections || []).reduce((sum, s) => sum + (s.counts?.images || 0) + (s.counts?.videos || 0), 0);
+  const buildMedia = (B.sections || []).reduce((sum, s) => sum + (s.counts?.images || 0) + (s.counts?.videos || 0), 0);
+  if (refMedia > 0 && buildMedia === 0) {
+    issues.push({ severity: "high", dimension: "layout", viewport: vp, section: null, title: "El build no tiene medios (la referencia sí tiene imágenes/vídeo)", expected: `${refMedia} medio(s)`, actual: "0 medios", weight: 0.2 });
+    return 0.85;
+  }
+  return 1;
+}
+
+/**
+ * Verifica integridad de layout: texto recortado en el build y desviación de
+ * posiciones de elementos respecto a la referencia. Penaliza el layout.
+ */
+function checkLayoutIntegrity(R, B, pairs, issues, vp) {
+  const clipped = (vp2) => (vp2.sections || []).reduce((n, s) => n + (s.elements || []).filter((e) => e.clipped).length, 0);
+  const refClipped = clipped(R);
+  const buildClipped = clipped(B);
+  let penalty = 1;
+  if (buildClipped > refClipped) {
+    issues.push({ severity: "high", dimension: "layout", viewport: vp, section: null, title: "Texto recortado en el build (contenido que no cabe en su contenedor)", expected: `${refClipped} texto(s) recortado(s) en la referencia`, actual: `${buildClipped} texto(s) recortado(s)`, weight: 0.15 * (buildClipped - refClipped) });
+    penalty *= 0.9;
+  }
+  // Desviación de posiciones de elementos clave (x%, w%) en secciones emparejadas.
+  let posMismatch = 0;
+  let posTotal = 0;
+  for (const [a, b] of pairs) {
+    if (a === null || b === null) continue;
+    const refElems = (R.sections[a].elements || []).slice(0, 6);
+    const buildElems = (B.sections[b].elements || []).slice(0, 6);
+    for (let i = 0; i < Math.min(refElems.length, buildElems.length); i++) {
+      const re = refElems[i], be = buildElems[i];
+      if (!re.x || !be.x) continue;
+      posTotal++;
+      // Desviación del x% y w% (tolerancia 18% del viewport).
+      if (Math.abs(re.x - be.x) > 18 || Math.abs(re.w - be.w) > 18) {
+        posMismatch++;
+      }
+    }
+  }
+  if (posTotal > 0 && posMismatch / posTotal > 0.5) {
+    issues.push({ severity: "medium", dimension: "layout", viewport: vp, section: null, title: "Posiciones de elementos muy distintas del plano de referencia", expected: "elementos en las posiciones del plano medido", actual: `${posMismatch}/${posTotal} elementos con posición desviada > 18%`, weight: 0.12 });
+    penalty *= 0.92;
+  }
+  return penalty;
+}
+
+/**
+ * Verifica que el build reproduzca el contrato de interacciones de la referencia.
+ * Si la referencia tiene un componente interactivo y el build no, emite issue.
+ */
+function checkInteractionContract(R, B, issues, vp) {
+  const refComps = R.interactionContract?.components || [];
+  const buildComps = B.interactionContract?.components || [];
+  if (!refComps.length && !buildComps.length) return 1;
+  const buildTypes = new Set(buildComps.map((c) => c.type));
+  let missing = 0;
+  for (const c of refComps) {
+    if (!buildTypes.has(c.type)) {
+      missing++;
+      issues.push({ severity: "high", dimension: "interaction", viewport: vp, section: null, title: `Falta el componente interactivo: ${c.type}`, expected: `${c.selector} (${c.note || "interactivo"})`, actual: "no se detectó en el build", weight: 0.2 * missing });
+    }
+  }
+  if (missing > 0) return 0.85;
+  return 1;
+}
+
 // ---------- API ----------
 function compareViewport(R, B, vp, ignore) {
   const issues = [];
@@ -400,6 +496,21 @@ function compareViewport(R, B, vp, ignore) {
     effects: compareEffects(R, B, issues, vp),
     perceptual: comparePerceptual(R, B, pairs, issues, vp),
   };
+  // Penalización por medios rotos / cobertura de medios ausente.
+  const mediaPenalty = checkMediaIntegrity(R, B, issues, vp);
+  if (mediaPenalty < 1 && dims.layout !== null) {
+    dims.layout = dims.layout * mediaPenalty;
+  }
+  // Penalización por texto recortado y desviación de posiciones de layout.
+  const layoutPenalty = checkLayoutIntegrity(R, B, pairs, issues, vp);
+  if (layoutPenalty < 1 && dims.layout !== null) {
+    dims.layout = dims.layout * layoutPenalty;
+  }
+  // Penalización por contrato de interacciones no replicado.
+  const interactionPenalty = checkInteractionContract(R, B, issues, vp);
+  if (interactionPenalty < 1 && dims.interaction !== null) {
+    dims.interaction = dims.interaction * interactionPenalty;
+  }
   for (const d of ignore) dims[d] = null;
   const score = wavg(DIMENSIONS.map((d) => [dims[d], WEIGHTS[d]])) ?? 0;
   const kept = issues.filter((i) => !ignore.includes(i.dimension));

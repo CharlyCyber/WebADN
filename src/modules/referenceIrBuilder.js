@@ -9,6 +9,25 @@ export function buildReferenceExperienceIR(evidence) {
   const sections = evidence.inspection?.sections || [];
   const structure = evidence.inspection?.sectionStructure || [];
 
+  // Tokens globales: ahora buildReferenceIR corre AFTER pixelAndSpacing y
+  // designAndFidelity, así que la IR incluye la paleta pixel, la escala de
+  // espaciado y el lenguaje de diseño (antes quedaba vacía).
+  ir.globalTokens = {
+    pixelPalette: evidence.pixelPalette || null,
+    spacing: evidence.spacing || null,
+    designLanguage: evidence.designLanguage || null,
+    typography: evidence.inspection?.tokens || null,
+    layout: evidence.inspection?.layout || null
+  };
+
+  // Responsive: resumen de los viewports y secciones medidos (mobile + desktop).
+  const fingerprint = evidence.probe || {};
+  ir.responsive = {
+    viewports: fingerprint.viewports || [],
+    sectionCounts: fingerprint.sections || null,
+    errors: fingerprint.errors || []
+  };
+
   ir.sections = sections.map((section, index) => {
     const struct = structure[index] || {};
     return {

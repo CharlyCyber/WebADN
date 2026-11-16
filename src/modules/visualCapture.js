@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { decodePng } from "./colorQuantizer.js";
 
 const THUMB_W = 96;
 const THUMB_H = 54;
@@ -206,11 +207,7 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
         };
       });
 
-      const quality = {
-        colors: [],
-        dominantRatio: 1,
-        note: "TODO: sample screenshot buffer via png parser"
-      };
+      const quality = raw ? analyzeScreenshot(raw) : { colors: [], dominantRatio: 1, note: "sin captura" };
 
       results.push({
         viewport: viewport.name,
@@ -254,4 +251,40 @@ function getScrollPointsForPreset(preset) {
   }
 }
 
+/**
+ * Analiza los píxeles de una captura (buffer PNG) y devuelve una métrica de
+ * calidad: colores únicos y ratio del color dominante. Se usa para detectar
+ * screenshots planos/vacíos (antes era un stub "TODO" que nunca validaba).
+ */
+async function analyzeScreenshot(buffer) {
+  try {
+    const img = await decodePng(buffer);
+    if (!img) return { colors: [], dominantRatio: 1, note: "decodePng falló" };
+    const { width, height, channels, pixels } = img;
+    const counts = new Map();
+    let total = 0;
+    // Sample estratégico (esparcido) para no recorrer todos los píxeles.
+    const step = Math.max(1, Math.floor(Math.min(width, height) / 64));
+    for (let y = 0; y < height; y += step) {
+      for (let x = 0; x < width; x += step) {
+        const i = (y * width + x) * channels;
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        const key = (r >> 4) * 256 + (g >> 4) * 16 + (b >> 4);
+        counts.set(key, (counts.get(key) || 0) + 1);
+        total++;
+      }
+    }
+    let dominant = 0;
+    let maxCount = 0;
+    for (const c of counts.values()) { if (c > maxCount) { maxCount = c; dominant = c; } }
+    const dominantRatio = total ? dominant / total : 1;
+    return {
+      colors: [...counts.keys()].slice(0, 12),
+      dominantRatio: Math.round(dominantRatio * 1000) / 1000,
+      note: counts.size <= 2 && dominantRatio > 0.96 ? "FLAT_COLOR_SCREEN" : "OK"
+    };
+  } catch (err) {
+    return { colors: [], dominantRatio: 1, note: `error: ${err.message}` };
+  }
+}
 

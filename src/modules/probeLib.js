@@ -266,7 +266,22 @@ export function probeLib() {
         const r = el.getBoundingClientRect();
         if (r.width < 40 || r.height < 40) continue;
         if (tag === "svg" && el.closest("a,button")) continue;
-        push(el, tag === "picture" ? "img" : tag, { ratio: rnd(r.width / r.height), radius: radiusOf(cs, r), fit: /^(img|video)$/.test(tag) ? cs.objectFit : undefined });
+        // Medir integridad del medio: img rota (naturalWidth 0) y video sin datos.
+        const broken = tag === "img"
+          ? (el.complete && el.naturalWidth === 0)
+          : (tag === "video" ? (el.readyState === 0 && !el.src) : false);
+        // Posición de object-fit/object-position y fondo del contenedor (scrim).
+        const contBg = /^(img|video)$/.test(tag) && el.parentElement
+          ? (W.bgOf(el.parentElement).image || null)
+          : null;
+        push(el, tag === "picture" ? "img" : tag, {
+          ratio: rnd(r.width / r.height),
+          radius: radiusOf(cs, r),
+          fit: /^(img|video)$/.test(tag) ? cs.objectFit : undefined,
+          pos: /^(img|video)$/.test(tag) && cs.objectPosition && cs.objectPosition !== "0% 0%" ? cs.objectPosition : undefined,
+          bgLayer: contBg,
+          broken: broken || undefined,
+        });
         continue;
       }
       if (tag === "input" || tag === "textarea") {
@@ -290,7 +305,9 @@ export function probeLib() {
       if (tag === "p" && el.closest("li,a,button")) { if (el.closest("a,button")) continue; }
       const f = fontOf(el, cs); const c = W.rgb(cs.color);
       const lines = Math.max(1, Math.round(el.getBoundingClientRect().height / (f.size * f.lineHeight)));
-      push(el, /^h[1-6]$/.test(tag) ? tag : "text", { fs: f.size, fw: f.weight, lh: f.lineHeight, ls: f.letterSpacing || undefined, font: f.family, color: c ? W.hex(c) : null, align: cs.textAlign === "start" ? "left" : cs.textAlign, lines, chars: text.length, upper: cs.textTransform === "uppercase" || undefined });
+      // Texto recortado: el contenido supera el contenedor (scrollWidth > clientWidth).
+      const clipped = el.scrollWidth > el.clientWidth + 1 ? true : undefined;
+      push(el, /^h[1-6]$/.test(tag) ? tag : "text", { fs: f.size, fw: f.weight, lh: f.lineHeight, ls: f.letterSpacing || undefined, font: f.family, color: c ? W.hex(c) : null, align: cs.textAlign === "start" ? "left" : cs.textAlign, lines, chars: text.length, upper: cs.textTransform === "uppercase" || undefined, clipped });
     }
     // texto grande fuera de etiquetas semánticas (div/span): rótulos, marquesinas, cifras
     count = 0;
@@ -366,9 +383,42 @@ export function probeLib() {
     const left = inner.length ? Math.min(...inner.map((e) => e.x)) : null;
     const right = inner.length ? Math.max(...inner.map((e) => e.x + e.w)) : null;
     for (const e of kept) for (const key of Object.keys(e)) if (e[key] === undefined || e[key] === null) delete e[key];
+
+    // Contenedores con reglas Flex/Grid: jerarquía de layout que el plano plano
+    // no tenía. Capturar display, flexDirection/wrap, justifyContent, alignItems,
+    // gap y gridTemplateColumns para que el agente use layout estructurado y no
+    // porcentajes absolutos.
+    const containers = [];
+    const seenCont = new Set();
+    for (const e of kept) {
+      let node = e.el.parentElement;
+      while (node && node !== root) {
+        const ncs = getComputedStyle(node);
+        if (ncs.display.includes("flex") || ncs.display.includes("grid")) {
+          if (!seenCont.has(node)) {
+            seenCont.add(node);
+            containers.push({
+              desc: W.desc(node).slice(0, 60),
+              display: ncs.display,
+              flexDirection: ncs.flexDirection !== "row" ? ncs.flexDirection : undefined,
+              flexWrap: ncs.flexWrap !== "nowrap" ? ncs.flexWrap : undefined,
+              justifyContent: ncs.justifyContent !== "flex-start" ? ncs.justifyContent : undefined,
+              alignItems: ncs.alignItems !== "stretch" ? ncs.alignItems : undefined,
+              gap: ncs.gap && ncs.gap !== "0px" ? ncs.gap : undefined,
+              gridTemplateColumns: ncs.gridTemplateColumns && ncs.gridTemplateColumns !== "none" ? ncs.gridTemplateColumns : undefined,
+              maxWidth: ncs.maxWidth && ncs.maxWidth !== "none" ? ncs.maxWidth : undefined,
+            });
+          }
+          break;
+        }
+        node = node.parentElement;
+      }
+    }
+
     return {
       elements: kept,
-      container: left === null ? null : { left: Math.round((left / 100) * vw), right: Math.round(((100 - right) / 100) * vw), widthPct: rnd(right - left, 1) },
+      container: left === null ? null : { left: Math.round((left / 100) * vw), right: Math.round((100 - right) / 100) * vw, widthPct: rnd(right - left, 1) },
+      containers: containers.slice(0, 8),
     };
   };
 
@@ -486,6 +536,42 @@ export function probeLib() {
       });
     } catch {}
     const html = document.documentElement; const hcs = getComputedStyle(html); const bcs = getComputedStyle(document.body);
+
+    // FASE 2B — Tipografía fluida: capturar font-size con clamp()/vw/vh/em/rem
+    // declarados en las hojas, para que el prompt replique el comportamiento
+    // responsive real (no un px estático resuelto en un único viewport).
+    const fluidScale = { rules: [], note: null };
+    const FLUID_FONT_RE = /font-size\s*:\s*([^;}]+)/i;
+    const FLUID_VALUE_RE = /(clamp\(|vw|vh|vmin|vmax|(?<!\w)em\b|rem\b)/i;
+    try {
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules || sheet.rules; } catch { continue; } // cross-origin
+        if (!rules) continue;
+        for (const rule of rules) {
+          const walk = (rs) => {
+            for (const r of rs || []) {
+              if (r instanceof CSSStyleRule) {
+                const m = (r.cssText || "").match(FLUID_FONT_RE);
+                if (m && FLUID_VALUE_RE.test(m[1])) {
+                  const sel = (r.selectorText || "").split(",").map(s => s.trim()).slice(0, 2).join(",");
+                  const tagM = sel.match(/^(h[1-6]|p|a|button|span|small|strong|em|\.[\w-]+|#[\w-]+)/i);
+                  const tag = tagM ? tagM[1] : sel.slice(0, 24);
+                  if (!fluidScale.rules.find(x => x.tag === tag && x.fluid === m[1].trim())) {
+                    fluidScale.rules.push({ tag, selector: sel, fluid: m[1].trim() });
+                  }
+                }
+              } else if (r instanceof CSSMediaRule) { walk(r.cssRules); }
+            }
+          };
+          walk(rules);
+        }
+      }
+    } catch {}
+    if (fluidScale.rules.length) {
+      fluidScale.note = `Se detectaron ${fluidScale.rules.length} regla(s) de font-size fluido. Repite exactamente estos clamp()/vw y los breakpoints de @media para heredar el comportamiento responsive del original.`;
+    }
+
     const libs = {
       gsap: !!window.gsap, scrollTrigger: !!window.ScrollTrigger, lenis: !!(window.lenis || window.Lenis || html.classList.contains("lenis") || document.querySelector(".lenis")),
       locomotive: !!(window.LocomotiveScroll || document.querySelector("[data-scroll-container]")), scrollSmoother: !!window.ScrollSmoother,
@@ -498,6 +584,7 @@ export function probeLib() {
       effects: { ...fx, grainOverlay, cursorNone: hcs.cursor === "none" || bcs.cursor === "none", smoothScroll: libs.lenis || libs.locomotive || libs.scrollSmoother,
         cssSmoothScroll: hcs.scrollBehavior === "smooth", radii: Object.entries(radii).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, n]) => ({ radius: k, count: n })) },
       libs,
+      fluidScale,
       motionTokens: Object.entries(transitions).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => { const [d, e] = k.split("|"); return { duration: +d, easing: e, count: n }; }),
       cssAnimations: Object.values(cssAnims).sort((a, b) => b.count - a.count).slice(0, 20),
       runningAnimations: anims,
@@ -705,4 +792,45 @@ export function probeLib() {
     title: document.title, lang: document.documentElement.lang || "",
     overflowX: Math.max(0, document.documentElement.scrollWidth - innerWidth),
   });
+
+  // ---------- elementos fijos / sticky (nav, header, footer fijo) ----------
+  // Antes se excluían de findSections (position: fixed), así que el nav/header
+  // no entraba en los planos. Ahora se capturan aparte con su contenido para
+  // que el agente replique el nav fijo y el menú móvil.
+  W.fixedElements = () => {
+    const vw = innerWidth, vh = innerHeight;
+    const out = [];
+    const seen = new Set();
+    const all = document.body.getElementsByTagName("*");
+    const limit = Math.min(all.length, 6000);
+    for (let i = 0; i < limit; i++) {
+      const el = all[i];
+      const cs = getComputedStyle(el);
+      if (cs.position !== "fixed" && cs.position !== "sticky") continue;
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 12 || r.height < 12) continue;
+      if (seen.has(el)) continue;
+      seen.add(el);
+      const bg = W.bgOf(el);
+      const txt = (el.innerText || "").replace(/\s+/g, " ").trim().slice(0, 80);
+      const links = [...el.querySelectorAll("a,button,[role=button]")].slice(0, 12).map((b) => ({
+        text: (b.innerText || "").replace(/\s+/g, " ").trim().slice(0, 40),
+        tag: b.tagName.toLowerCase(),
+      })).filter((b) => b.text);
+      // Un wrapper que contiene al nav fijo se considera un único elemento.
+      if (el.parentElement && (getComputedStyle(el.parentElement).position === "fixed" || getComputedStyle(el.parentElement).position === "sticky")) continue;
+      out.push({
+        desc: W.desc(el).slice(0, 60),
+        tag: el.tagName.toLowerCase(),
+        position: cs.position,
+        x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height),
+        bg: bg.color, bgImage: bg.image,
+        backdrop: cs.backdropFilter && cs.backdropFilter !== "none" ? cs.backdropFilter : undefined,
+        text: txt || null,
+        links,
+      });
+    }
+    return out.slice(0, 12);
+  };
 }

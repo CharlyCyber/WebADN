@@ -1,4 +1,4 @@
-﻿// @ts-check
+// @ts-check
 import { inspectUrl, sampleInspection } from "./modules/scraper.js";
 import { buildKnowledgeMatrix } from "./modules/knowledgeMatrix.js";
 import { analyzeMotionReference } from "./modules/visionEngine.js";
@@ -31,15 +31,31 @@ import { basename } from "node:path";
 export async function runOrchestrator(config) {
   const pipelineContext = { timings: {}, data: {} };
 
+  // Cache check primero: si hay un run reciente, devolver sus artefactos sin
+  // ejecutar el pipeline. (Antes se ejecutaba todo el pipeline y luego se
+  // devolvía el cache: work descartado y ralentía en todo cache hit.)
+  const cacheStart = Date.now();
+  try {
+    pipelineContext.data.cacheCheck = await runCacheCheck(pipelineContext, config);
+    pipelineContext.timings.cacheCheck = Date.now() - cacheStart;
+  } catch (err) {
+    pipelineContext.timings.cacheCheck = Date.now() - cacheStart;
+    log("error", "cacheCheck", "Fallo la comprobación de caché", { error: err.message });
+    throw err;
+  }
+  const cacheHit = pipelineContext.data.cacheCheck?.cached;
+  if (cacheHit) return cacheHit;
+
+  // buildReferenceIR va AFTER pixelAndSpacing y designAndFidelity para que la
+  // IR incluya pixelPalette, spacing y designLanguage (antes quedaba incompleta).
   const pipeline = [
-    { name: 'cacheCheck', fn: runCacheCheck },
     { name: 'robotsCheck', fn: runRobotsCheck },
     { name: 'scraper', fn: runScraper },
     { name: 'analysis', fn: runAnalysis },
-    { name: 'buildReferenceIR', fn: runBuildReferenceIR },
     { name: 'fingerprint', fn: runFingerprint },
     { name: 'pixelAndSpacing', fn: runPixelAndSpacing },
     { name: 'designAndFidelity', fn: runDesignAndFidelity },
+    { name: 'buildReferenceIR', fn: runBuildReferenceIR },
     { name: 'llmInterpretation', fn: runLlmInterpretation },
     { name: 'saveArtifacts', fn: runSaveArtifacts },
     { name: 'packageContext', fn: runPackageContext },
@@ -61,9 +77,6 @@ export async function runOrchestrator(config) {
       throw err;
     }
   }
-
-  const cacheHit = pipelineContext.data.cacheCheck?.cached;
-  if (cacheHit) return cacheHit;
 
   return {
     prompt: pipelineContext.data.generatePrompt,
@@ -388,15 +401,20 @@ async function runFingerprint(ctx, config) {
   const { evidence, paths, effectivePreset } = ctx.data;
   if (config.dryRun || config.fingerprint === false) return {};
   try {
-    const fingerprint = await captureFingerprint({
-      url: config.url,
-      browser: await getBrowser(),
-      shotsDir: paths.screenshotsPath,
-      prefix: REF_SHOT_PREFIX,
-      depth: effectivePreset || config.preset || "standard",
-      timeoutMs: Math.max(30000, Number(config.timeoutMs) || 45000),
-      onProgress: config.onProgress
-    });
+      const fingerprint = await captureFingerprint({
+        url: config.url,
+        browser: await getBrowser(),
+        shotsDir: paths.screenshotsPath,
+        prefix: REF_SHOT_PREFIX,
+        depth: effectivePreset || config.preset || "standard",
+        // Pipeline completo: capturar desktop, mobile, tablet y wide para
+        // responsive total. Fast se limita a desktop+mobile.
+        viewports: effectivePreset === "fast"
+          ? ["desktop", "mobile"]
+          : ["desktop", "mobile", "tablet", "wide"],
+        timeoutMs: Math.max(30000, Number(config.timeoutMs) || 45000),
+        onProgress: config.onProgress
+      });
     ctx.data.siteFingerprint = fingerprint;
     const d = fingerprint.viewports.desktop || Object.values(fingerprint.viewports)[0];
     evidence.probe = {
