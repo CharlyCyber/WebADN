@@ -32,14 +32,15 @@ const ALLOW_LOCAL_BUILDS = flag("ALLOW_LOCAL_BUILDS", IS_LOCAL_ONLY);
 const ALLOW_EMBED = flag("ALLOW_EMBED", false);
 const DEFAULT_PRESET = ["fast", "standard", "surgical"].includes(process.env.DEFAULT_PRESET) ? process.env.DEFAULT_PRESET : "standard";
 
-// En un hosting público sin contraseña cualquiera con la URL podría lanzar navegadores
-// en tu servidor: mejor no arrancar que arrancar abierto.
-if (process.env.RENDER && !AUTH_TOKEN) {
-  console.error("Falta AUTH_TOKEN: define la contraseña del dashboard en las variables de entorno de Render.");
+// Cualquier interfaz enlazada fuera de loopback debe exigir autenticación.
+// Esto cubre Render, Docker y despliegues manuales con HOST=0.0.0.0.
+if (!IS_LOCAL_ONLY && !AUTH_TOKEN) {
+  console.error("Falta AUTH_TOKEN: define una contraseña antes de exponer el dashboard en la red.");
   process.exit(1);
 }
-if (AUTH_TOKEN && !IS_LOCAL_ONLY && AUTH_TOKEN.length < 12) {
-  console.warn("Aviso: AUTH_TOKEN tiene menos de 12 caracteres; usa una contraseña más larga.");
+if (!IS_LOCAL_ONLY && AUTH_TOKEN.length < 16) {
+  console.error("AUTH_TOKEN debe tener al menos 16 caracteres cuando el dashboard está expuesto en la red.");
+  process.exit(1);
 }
 const extractionSemaphore = new Semaphore(MAX_CONCURRENT);
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
