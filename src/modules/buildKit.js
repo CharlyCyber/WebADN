@@ -61,12 +61,28 @@ function elementLine(e) {
   if (e.radius) bits.push(rad(e.radius));
   if (e.padX) bits.push(`padding lateral ${e.padX}px`);
   if (e.pad) bits.push(`padding ${e.pad}px`);
-  if (e.ratio) bits.push(`proporción ${e.ratio}:1${e.fit && e.fit !== "fill" ? `, object-fit ${e.fit}` : ""}`);
+  if (e.ratio) bits.push(`proporción ${e.ratio}:1${e.fit && e.fit !== "fill" ? `, object-fit ${e.fit}` : ""}${e.pos ? `, object-position ${e.pos}` : ""}${e.bgLayer ? `, capa de fondo ${e.bgLayer}` : ""}`);
+  if (e.broken) bits.push("⚠️ imagen/medio roto en la referencia (no lo copies)");
+  if (e.clipped) bits.push("⚠️ texto recortado en la referencia (ajusta el contenedor)");
   return `  - ${group}${KIND[e.k] || e.k}: ${bits.join(" · ")}`;
 }
 
 function blueprintBlock(s, ms) {
   const L = [];
+  if (s.containers?.length) {
+    L.push("- Reglas de layout (contenedores Flex/Grid, replicar exactamente):");
+    for (const c of s.containers) {
+      const bits = [`display: ${c.display}`];
+      if (c.flexDirection) bits.push(`dir: ${c.flexDirection}`);
+      if (c.flexWrap) bits.push(`wrap: ${c.flexWrap}`);
+      if (c.justifyContent) bits.push(`justify: ${c.justifyContent}`);
+      if (c.alignItems) bits.push(`align: ${c.alignItems}`);
+      if (c.gap) bits.push(`gap: ${c.gap}`);
+      if (c.gridTemplateColumns) bits.push(`cols: ${c.gridTemplateColumns}`);
+      if (c.maxWidth) bits.push(`max-width: ${c.maxWidth}`);
+      L.push(`  - \`${c.desc || "contenedor"}\`: ${bits.join(" · ")}`);
+    }
+  }
   if (s.elements?.length) {
     const c = s.container;
     L.push(`- Plano en escritorio (x/ancho en % del ancho de pantalla; y/alto en px desde el inicio de la sección)${c ? ` · márgenes laterales del contenido: ${c.left}px izq. / ${c.right}px der.` : ""}:`);
@@ -192,10 +208,11 @@ export function composeKitPrompt({ fingerprint, niche, url, clientBrief = null }
   L.push(`# Encargo: sitio para «${niche}» con el sistema visual de ${url}`, "");
   L.push("Eres un desarrollador front-end sénior especializado en sitios de nivel Awwwards. Vas a construir un sitio NUEVO para el nicho indicado que reproduzca el sistema visual y de movimiento de la referencia: mismas proporciones, ritmo, tipografía, color, animaciones, scroll y hovers. Todos los valores de este documento fueron MEDIDOS en un navegador real; no los sustituyas por valores «parecidos».", "");
   L.push("## Reglas", "");
-  L.push("1. **Fuente de verdad:** `spec.json` (medidas exactas) y `screenshots/` (una captura por sección, escritorio y móvil). Este documento es su resumen legible; si no tienes acceso a los archivos, trabaja solo con él.");
+  L.push("1. **Fuente de verdad:** `spec.json` (medidas exactas), `screenshots/` (una captura por sección, escritorio y móvil) y `assets/` (imágenes y fuentes descargadas localmente, con rutas relativas funcionales). Este documento es su resumen legible; si no tienes acceso a los archivos, trabaja solo con él.");
   L.push("2. **Qué se conserva (intocable):** estructura y orden de secciones, alturas, el plano de cada sección (posición y tamaño de cada elemento), escala tipográfica, paleta, radios, efectos, cada animación (propiedades, duración, retardo, easing), comportamiento de scroll (pins, parallax, horizontal) y hovers.");
   L.push("   **El nicho no cambia el diseño.** No adaptes colores, tipografías, formas, espaciados ni animaciones al sector, a la marca del cliente ni a lo que «pegaría» con el negocio: es el contenido el que se adapta al diseño medido, nunca al revés. Ante la duda entre el nicho y una medida, gana la medida.");
   L.push(`3. **Qué se sustituye:** todo el texto, imágenes, logos y nombres. Escribe contenido original para «${niche}» que ocupe aproximadamente el mismo espacio (mismo número de líneas en titulares, misma cantidad de tarjetas/elementos). No copies copy ni assets de la referencia.`);
+  L.push("   **Imágenes:** no inventes URLs externas (p. ej. Unsplash/hotlink suelen estar rotas o bloqueadas). Usa SIEMPRE una de estas fuentes funcionales, con las dimensiones del plano: (a) `https://picsum.photos/seed/<único>/<ancho>/<alto>` para fotografías reales; (b) un `<svg>` inline autocontenido para iconos, logotipos y gráficos (usar `currentColor`, `stroke`, `viewBox`); (c) si necesitas un color de fondo solo, usa un `div` con el color medido. Para cada `<img>` setea `width`/`height` (evita CLS), `loading=\"lazy\"`, `decoding=\"async\"`, y respeta `object-fit`/`object-position` del plano.");
   L.push("4. **Fuentes:** carga las mismas familias que la referencia cuando sean de uso libre (ver «Tipografía»). Solo si la familia exacta no lo es, elige la alternativa libre más parecida de la misma clasificación (serif/sans/mono) y ajusta tamaño y tracking para igualar la mancha.");
   L.push("5. **Responsive:** el diseño móvil (390px) está medido aparte; respeta sus valores, no los derives del escritorio.");
   L.push("6. Respeta `prefers-reduced-motion` y anima solo `transform`/`opacity`/`clip-path`.");
@@ -221,9 +238,73 @@ export function composeKitPrompt({ fingerprint, niche, url, clientBrief = null }
     for (const h of src.links || []) L.push(`- ${h}`);
     L.push("");
   }
+  // Tipografía fluida (clamp/vw/rem) para responsive total.
+  if (d.type?.fluidScale?.rules?.length) {
+    L.push("### Tipografía fluida (replicar exactamente para responsive)");
+    for (const r of d.type.fluidScale.rules.slice(0, 12)) {
+      L.push(`- \`${r.selector}\` → font-size: ${r.fluid}`);
+    }
+    L.push("");
+  }
   if (d.type?.display) L.push(`Texto más grande de la página: ${d.type.display.size}px ${d.type.display.family}${m?.type?.display ? ` (móvil ${m.type.display.size}px)` : ""}.`, "");
   L.push(`## Secciones (${d.sections.length}) — página de ${d.page.heightVh} alturas de pantalla${m ? ` en escritorio, ${m.page.heightVh} en móvil` : ""}`, "");
-  d.sections.forEach((s, i) => { L.push(sectionBlock(s, m?.sections?.[i] && m.sections.length === d.sections.length ? m.sections[i] : null), ""); });
+  // Alineación móvil robusta: si el número de secciones coincide, emparejar por
+  // índice; si no (mobile esconde/divide/colapsa una sección), emparejar por
+  // posición de scroll (top más cercano) para NO borrar el plano/alturas/capturas
+  // móviles completos. Antes se nulaban todos cuando m.sections.length !=
+  // d.sections.length, perdiendo toda la guía de mobile.
+  const mobileByTop = m?.sections?.length
+    ? m.sections
+    : [];
+  d.sections.forEach((s, i) => {
+    let ms = null;
+    if (mobileByTop.length) {
+      if (mobileByTop.length === d.sections.length) {
+        ms = mobileByTop[i] || null;
+      } else {
+        // Buscar la sección móvil con el top más cercano al de la sección desktop.
+        const targetTop = s.top ?? 0;
+        let best = null;
+        let bestDist = Infinity;
+        for (const cand of mobileByTop) {
+          const dist = Math.abs((cand.top ?? 0) - targetTop);
+          if (dist < bestDist) { bestDist = dist; best = cand; }
+        }
+        ms = best || null;
+      }
+    }
+    L.push(sectionBlock(s, ms), "");
+  });
+  // Elementos fijos/sticky: nav, header y footer fijo (antes excluidos del plano).
+  if (d.fixedElements?.length) {
+    L.push("## Elementos fijos / sticky (replicar el nav fijo y su menú)", "");
+    for (const f of d.fixedElements) {
+      const bits = [`\`${f.desc}\` (${f.tag}, ${f.position})`, `posición ${f.x},${f.y} · ${f.w}×${f.h}px`];
+      if (f.bg) bits.push(`fondo ${f.bg}${f.bgImage ? ` ${f.bgImage === "gradient" ? "degradado" : "imagen"}` : ""}`);
+      if (f.backdrop) bits.push(`backdrop ${f.backdrop}`);
+      if (f.text) bits.push(`texto "${f.text.slice(0, 40)}"`);
+      if (f.links?.length) bits.push(`enlaces: ${f.links.map((l) => l.text).join(", ")}`);
+      L.push(`- ${bits.join(" · ")}`);
+    }
+    L.push("");
+  }
+  // Contrato de interacciones: functionality que el build debe reproducir.
+  if (d.interactionContract?.components?.length) {
+    L.push("## Interacciones funcionales (replicar al 100%)", "");
+    for (const c of d.interactionContract.components) {
+      const head = `- **${c.type}** \`${c.selector}\``;
+      const extras = [];
+      if (c.itemCount) extras.push(`${c.itemCount} item(s)`);
+      if (c.tabCount) extras.push(`${c.tabCount} tab(s)`);
+      if (c.fieldCount) extras.push(`${c.fieldCount} campo(s)`);
+      if (c.submit) extras.push(`submit "${c.submit}"`);
+      if (c.triggerText) extras.push(`gatillo "${c.triggerText}"`);
+      if (c.count) extras.push(`${c.count} enlace(s)`);
+      L.push(`${head}${extras.length ? ` (${extras.join(", ")})` : ""}`);
+      if (c.note) L.push(`  - ${c.note}`);
+    }
+    L.push("");
+  }
   L.push("## Movimiento en detalle (escritorio)", "", motionDetail(d));
   if (m) {
     const ms = m.motion?.summary || {};
@@ -258,6 +339,25 @@ export async function writeKit({ runPath, fingerprint, niche, url, clientBrief =
       await Promise.all(shots.map((f) => copyFile(join(src, f), join(kitPath, "screenshots", f))));
     }
   } catch { /* sin capturas */ }
+  // Assets descargados (imágenes/fuentes locales) para que el agente use rutas
+  // locales funcionales en vez de inventar URLs externas rotas.
+  try {
+    const assetsSrc = join(runPath, "assets");
+    const assets = await readdir(assetsSrc);
+    if (assets.length) {
+      await mkdir(join(kitPath, "assets"), { recursive: true });
+      for (const dir of ["images", "fonts"]) {
+        const d = join(assetsSrc, dir);
+        try {
+          const files = await readdir(d);
+          if (files.length) {
+            await mkdir(join(kitPath, "assets", dir), { recursive: true });
+            await Promise.all(files.map((f) => copyFile(join(d, f), join(kitPath, "assets", dir, f))));
+          }
+        } catch { /* sin esa subcarpeta */ }
+      }
+    }
+  } catch { /* sin assets descargados */ }
   return { kitPath, prompt, promptPath: join(kitPath, "PROMPT.md") };
 }
 
@@ -273,6 +373,18 @@ export async function zipKit(runPath) {
   try { shots = await readdir(shotsDir); } catch { shotsDir = join(runPath, "screenshots"); try { shots = await readdir(shotsDir); } catch { /* sin capturas */ } }
   shots = shots.filter((f) => f.startsWith(REF_SHOT_PREFIX) && f.endsWith(".png"));
   for (const f of shots.sort()) await add(`screenshots/${f}`, join(shotsDir, f));
+  // Assets descargados (imágenes/fuentes locales) en el zip.
+  let assetsDir = join(kitPath, "assets");
+  let hasAssets = false;
+  try { hasAssets = (await readdir(assetsDir)).length > 0; } catch { assetsDir = join(runPath, "assets"); try { hasAssets = (await readdir(assetsDir)).length > 0; } catch { /* sin assets */ } }
+  if (hasAssets) {
+    for (const dir of ["images", "fonts"]) {
+      const d = join(assetsDir, dir);
+      try {
+        for (const f of (await readdir(d))) await add(`assets/${dir}/${f}`, join(d, f));
+      } catch { /* sin esa subcarpeta */ }
+    }
+  }
   if (!files.some((f) => f.name.endsWith("PROMPT.md"))) throw new Error("Este run no tiene kit (se generó en modo demo o con una versión anterior).");
   return createZip(files);
 }

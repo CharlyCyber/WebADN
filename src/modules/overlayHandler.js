@@ -1,13 +1,20 @@
 const OVERLAY_PATTERNS = [
-  { text: /accept.*(all|cookies?)|acceptar/i, action: "accept", priority: 2 },
-  { text: /reject.*(all|cookies?)|rechazar/i, action: "reject", priority: 1 },
-  { text: /allow.*(all|cookies?)|permitir/i, action: "accept", priority: 2 },
+  { text: /accept.*(all|cookies?)|acceptar/i, action: "accept", priority: 3 },
+  { text: /reject.*(all|cookies?)|rechazar/i, action: "reject", priority: 2 },
+  { text: /allow.*(all|cookies?)|permitir/i, action: "accept", priority: 3 },
   { text: /necessary|necesari/i, action: "necessary", priority: 1 },
   { text: /continue|continuar|got it|entendido/i, action: "accept", priority: 3 },
-  { text: /close|cerrar|dismiss|x/i, action: "close", priority: 4 },
-  { text: /agree|consent/i, action: "accept", priority: 2 },
-  { text: /decline|opt.?out/i, action: "reject", priority: 1 }
+  // El patrón "x" solo casa con un botón cuyo texto es SOLO "x" (o "×"), no con
+  // cualquier botón que contenga la letra x (p. ej. "Box", "Explore", "Xfinity").
+  { text: /^(x|×|✕)$/i, action: "close", priority: 2 },
+  { text: /^(close|cerrar|dismiss)$/i, action: "close", priority: 2 },
+  { text: /agree|consent/i, action: "accept", priority: 3 },
+  { text: /decline|opt.?out/i, action: "reject", priority: 2 }
 ];
+
+// Patrones ordenados por prioridad DESCENDENTE: se prueban primero los de mayor
+// prioridad (accept/reject/consent) antes que los genéricos (close/necessary).
+const SORTED_OVERLAY_PATTERNS = [...OVERLAY_PATTERNS].sort((a, b) => b.priority - a.priority);
 
 const OVERLAY_CONTAINER_SELECTORS = [
   "#onetrust-banner-sdk",
@@ -52,7 +59,7 @@ export async function handleOverlays(page) {
       }
       if (!text) continue;
 
-      for (const pattern of OVERLAY_PATTERNS) {
+      for (const pattern of SORTED_OVERLAY_PATTERNS) {
         if (pattern.text.test(text)) {
           try {
             await button.click({ timeout: 2000 });

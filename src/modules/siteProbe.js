@@ -7,6 +7,7 @@ import { probeLib } from "./probeLib.js";
 import { analyzeMotion } from "./motionAnalysis.js";
 import { decodePng } from "./colorQuantizer.js";
 import { handleOverlays } from "./overlayHandler.js";
+import { probeInteractionContract } from "./interactionContract.js";
 
 export const FINGERPRINT_VERSION = 1;
 
@@ -15,6 +16,10 @@ export const PROBE_VIEWPORTS = {
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36" },
   mobile: { width: 390, height: 844, isMobile: true, hasTouch: true,
     userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
+  tablet: { width: 834, height: 1112, isMobile: false, hasTouch: true,
+    userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
+  wide: { width: 1920, height: 1080, isMobile: false, hasTouch: false,
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36" },
 };
 
 const DEPTHS = {
@@ -206,10 +211,16 @@ async function probeViewport(browser, url, name, opts) {
       hover = await probeHover(page, depth, vp).catch(() => null);
     }
 
+    const fixedElements = await page.evaluate(() => window.__WADN.fixedElements()).catch(() => []);
+    // Contrato de interacciones (menú, accordeon, tabs, carrusel, modal, formularios).
+    const interactionContract = await probeInteractionContract(page).catch(() => ({ components: [], summary: { total: 0, byType: {} } }));
+
     return {
       viewport: { width: vp.width, height: vp.height },
       page: { ...metrics, sectionCount: sections.length, heightVh: Math.round((metrics.docHeight / vp.height) * 100) / 100 },
       sections: sections.map((s) => ({ ...s, motion: motion.sections[s.index] || null })),
+      fixedElements,
+      interactionContract,
       type: style.type, color: style.color, effects: style.effects, libs: style.libs,
       motion: {
         summary: motion.summary, tokens: style.motionTokens, cssAnimations: style.cssAnimations,

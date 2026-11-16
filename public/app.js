@@ -193,6 +193,7 @@ $("#extractForm").addEventListener("submit", async (event) => {
   try {
     await postStream("/api/extract", {
       url: data.get("url"), ...business, notes: data.get("notes") || "",
+      preset: data.get("preset") || "standard",
       force: data.get("force") === "on", ignoreRobots: data.get("ignoreRobots") === "on",
     }, (type, payload) => {
       if (type === "progress") extractProgress.say(payload.message);
@@ -338,8 +339,24 @@ $("#sectionDetail").addEventListener("click", (event) => {
 
 $("#copyPrompt").addEventListener("click", async () => {
   if (!kit) return;
-  await copyText(kit.prompt);
-  toast("Prompt copiado");
+  // Entregar el prompt + las rutas del kit (spec.json, screenshots, assets) para
+  // que el agente en chat tenga el contexto completo, no solo el texto del prompt.
+  const kitNote = [
+    "=== KIT DE WEBADN ===",
+    `Run: ${kit.run}`,
+    `Referencia: ${kit.url}`,
+    "Archivos del kit (úsalos junto a este prompt):",
+    "- spec.json: medidas exactas medidas en navegador",
+    "- screenshots/: capturas por sección (escritorio y móvil)",
+    "- assets/: imágenes y fuentes descargadas localmente",
+    "- fingerprint.json: huella completa para `webadn compare`",
+    "Si no tienes estos archivos, trabaja solo con el prompt (tiene los valores resumidos).",
+    "",
+    "=== PROMPT ===",
+    kit.prompt,
+  ].join("\n");
+  await copyText(kitNote);
+  toast("Prompt + rutas del kit copiado");
 });
 
 $("#downloadKit").addEventListener("click", async () => {

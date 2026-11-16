@@ -41,10 +41,14 @@ export const TOOLS = [
 export async function callTool(name, args = {}) {
   if (name === "webadn_extract") {
     const result = await runOrchestrator({ url: args.url, niche: args.niche, preset: args.preset || "standard", force: args.force === true, headless: true, timeoutMs: 60000 });
+    // El mega-brief (result.prompt) contiene la evidencia rica completa: CSS,
+    // assets, tipografía fluida, secciones, motion, hovers. El kit.prompt solo
+    // cubre la huella de fingerprint. Entregar el mega-brief como default para
+    // que el agente reciba toda la evidencia extraída.
     const head = result.kit?.path
-      ? `Kit guardado en: ${result.kit.path}\nPara medir el build: webadn_compare con reference="${result.kit.path}".\n\n`
+      ? `Kit guardado en: ${result.kit.path} (PROMPT.md, spec.json, fingerprint.json, capturas, extras/brief.md).\nPara medir el build: webadn_compare con reference="${result.kit.path}".\n\n`
       : "No se pudo medir la huella; se devuelve el brief clásico.\n\n";
-    return head + (result.kit?.prompt || result.prompt);
+    return head + (result.prompt || result.kit?.prompt || "No se pudo generar el brief.");
   }
   if (name === "webadn_compare") {
     const { markdown, outDir } = await runCompare({ ref: args.reference, buildUrl: args.build_url, ignore: args.ignore || [] });

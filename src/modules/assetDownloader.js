@@ -2,7 +2,15 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { isHostPublic } from "../support/urlSafety.js";
 
-const shouldDownloadBinaries = process.argv.includes('--download-binaries');
+// Descarga de binarios ACTIVADA por defecto: el agente recibe assets locales
+// funcionales en el kit (imágenes + fuentes), no solo URLs externas que pueden
+// estar rotas o bloqueadas. Se desactiva solo con WEBADN_NO_DOWNLOAD_ASSETS=1
+// o --no-download-assets. (Antes solo se activaba con --download-binaries, así
+// que nunca se descargaban y los agentes inventaban URLs muertas.)
+const shouldDownloadBinaries = !(
+  process.env.WEBADN_NO_DOWNLOAD_ASSETS === "1" ||
+  process.argv.includes("--no-download-assets")
+);
 
 export async function downloadLocalAssets(assets, downloadPath, onProgress) {
   const downloaded = { images: [], fonts: [] };
