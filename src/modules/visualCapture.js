@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { decodePng } from "./colorQuantizer.js";
+import { hideLoadingOverlays } from "./loadingOverlay.js";
 
 const THUMB_W = 96;
 const THUMB_H = 54;
@@ -10,6 +11,7 @@ async function generateThumbnail(page) {
   try {
     await page.setViewportSize({ width: THUMB_W * 2, height: THUMB_H * 2 });
     await page.waitForTimeout(100);
+    await hideLoadingOverlays(page).catch(() => {});
     const buf = await page.screenshot({ type: "jpeg", quality: 50, timeout: 5000 });
     return "data:image/jpeg;base64," + buf.toString("base64");
   } catch {
@@ -82,6 +84,9 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
   const scrollPoints = getScrollPointsForPreset(preset);
   const results = [];
 
+  // Un preloader que no termina se cuela en todas las capturas: se retira.
+  await hideLoadingOverlays(page).catch(() => {});
+
   // Esperar a que las fuentes estén cargadas (con timeout de 5s para evitar bloqueo infinito)
   try {
     await page.evaluate(async () => {
@@ -142,6 +147,8 @@ export async function captureViewportMatrix(page, screenshotsPath, preset = "sta
 
       const screenshotName = `${viewport.name}-${String(scrollPercent).padStart(3, "0")}.png`;
       const screenshotPath = join(screenshotsPath, screenshotName);
+      // El cambio de viewport / el scroll pueden re-mostrar un preloader.
+      await hideLoadingOverlays(page).catch(() => {});
       const raw = await safeScreenshot(page, { path: screenshotPath, fullPage: false });
       let thumbnail = null;
       if (raw) {

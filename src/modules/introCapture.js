@@ -87,7 +87,7 @@ export async function captureIntroTimeline(page, { screenshotsPath, preset, onPr
     const loaders = [...document.querySelectorAll('*')].filter(el => {
       const id = (el.id || "").toLowerCase();
       const cls = [...el.classList].join(" ").toLowerCase();
-      return (id + cls).match(/loader|spinner|preload/) && el.getBoundingClientRect().width > 0;
+      return (id + cls).match(/load|spinner|spin|curtain|transition|splash|progress/) && el.getBoundingClientRect().width > 0;
     });
     if (!loaders.length) return { detected: false };
     const first = loaders[0];
