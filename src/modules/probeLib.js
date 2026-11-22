@@ -53,38 +53,150 @@ export function probeLib() {
   const shown = (el, cs, r) => r.width > 1 && r.height > 1 && cs.display !== "none" && cs.visibility !== "hidden";
 
   // ---------- secciones ----------
+  // Un elemento `position: fixed` puede ser dos cosas muy distintas:
+  //   1) un nav/preloader/overlay pequeño → no es una sección;
+  //   2) el wrapper de smooth scroll (Lenis, ScrollSmoother, GSAP) que contiene
+  //      TODA la página → sí es un host de secciones y hay que bajar a él.
+  // Antes se descartaba cualquier fixed, así que un sitio con wrapper fijo
+  // quedaba reducido a "header + footer" (el bug de accentboissons.com).
   W.findSections = () => {
     const vw = innerWidth, vh = innerHeight;
     const docH = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+    const minH = (el) => (/^(header|nav|footer)$/i.test(el.tagName) ? 48 : vh * 0.12);
+    const hostCache = new Map();
+
+    const isContentHost = (el) => {
+      if (hostCache.has(el)) return hostCache.get(el);
+      let sections = 0, headings = 0, large = 0;
+      const all = el.querySelectorAll("*");
+      const limit = Math.min(all.length, 1800);
+      for (let i = 0; i < limit; i++) {
+        const d = all[i];
+        const tag = d.tagName;
+        if (/^(SECTION|ARTICLE|MAIN)$/.test(tag)) sections++;
+        else if (/^H[1-6]$/.test(tag)) headings++;
+        const dr = d.getBoundingClientRect();
+        if (dr.height >= vh * 0.18 && dr.width >= vw * 0.35) large++;
+      }
+      const height = Math.max(el.scrollHeight, el.getBoundingClientRect().height);
+      const host = height >= vh * 0.5 && (sections >= 2 || headings >= 3 || large >= 4);
+      hostCache.set(el, host);
+      return host;
+    };
+
     const info = (el) => {
       const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
-      return { el, r, cs, ok: shown(el, cs, r) && cs.position !== "fixed" && r.width >= vw * 0.6 };
+      const fixed = cs.position === "fixed" || cs.position === "sticky";
+      const ok = shown(el, cs, r) && r.width >= vw * 0.6 && (!fixed || isContentHost(el));
+      return { el, r, cs, ok, fixed };
     };
-    const minH = (el) => (/^(header|nav|footer)$/i.test(el.tagName) ? 48 : vh * 0.12);
+    const eligible = (k) => k.ok && k.r.height >= minH(k.el);
+
     let root = document.body;
     for (let i = 0; i < 10; i++) {
-      const kids = [...root.children].map(info).filter((k) => k.ok && k.r.height >= minH(k.el));
+      const kids = [...root.children].map(info).filter(eligible);
       if (kids.length === 1 && kids[0].r.height >= root.getBoundingClientRect().height * 0.7) root = kids[0].el;
       else break;
     }
-    let list = [...root.children].map(info).filter((k) => k.ok && k.r.height >= minH(k.el)).map((k) => k.el);
-    for (let pass = 0; pass < 3; pass++) {
+    let list = [...root.children].map(info).filter(eligible).map((k) => k.el);
+
+    // Desciende por wrappers (uno o varios hijos) hasta llegar a los bloques
+    // reales. Un wrapper de un solo hijo que cubre casi todo el padre es, casi
+    // siempre, un contenedor intermedio (#app, #smooth-content, .page...).
+    for (let pass = 0; pass < 6; pass++) {
       const next = [];
       let changed = false;
       for (const el of list) {
         const h = el.getBoundingClientRect().height;
-        const kids = [...el.children].map(info).filter((k) => k.ok && k.r.height >= minH(k.el));
+        const kids = [...el.children].map(info).filter(eligible);
         const cover = kids.reduce((s, k) => s + k.r.height, 0);
-        const semantic = kids.filter((k) => /^(section|article|header|footer)$/i.test(k.el.tagName)).length;
-        if (h > vh * 2.2 && kids.length >= 2 && cover >= h * 0.7 && (semantic >= 2 || list.length < 3)) {
-          next.push(...kids.map((k) => k.el)); changed = true;
-        } else next.push(el);
+        const semantic = kids.filter((k) => /^(section|article|header|footer|main)$/i.test(k.el.tagName)).length;
+        const sectionish = kids.filter((k) => {
+          const cls = typeof k.el.className === "string" ? k.el.className : "";
+          return /section|hero|banner|product|block|panel|slide|page|content|about|contact|footer|header/i.test(cls);
+        }).length;
+        const tallKids = kids.filter((k) => k.r.height >= vh * 0.5).length;
+        const parentSemantic = /^(section|article|main)$/i.test(el.tagName);
+        const singleWrapper = !parentSemantic && kids.length === 1 &&
+          kids[0].r.height >= Math.max(h * 0.7, vh * 1.2);
+        const split = cover >= h * 0.65 && (
+          singleWrapper ||
+          (h > vh * 2.2 && kids.length >= 2 && (semantic >= 2 || sectionish >= 2 || tallKids >= 2 || list.length < 3))
+        );
+        if (split) {
+          next.push(...kids.map((k) => k.el));
+          changed = true;
+        } else {
+          next.push(el);
+        }
       }
       list = next;
       if (!changed) break;
     }
+
+    // Fallback: si el recorrido estructural sigue sin encontrar secciones
+    // (por ejemplo, paneles fijos con scroll-jacking), recuperar los hitos
+    // semánticos que haya en cualquier punto del documento.
+    const covered = list.reduce((s, el) => s + el.getBoundingClientRect().height, 0);
+    if (list.length < 3 && covered < docH * 0.5) {
+      const landmarks = [...document.querySelectorAll("section, article, [data-section], main > div, body > div > div")]
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          return { el, r, cs, ok: shown(el, cs, r) && r.width >= vw * 0.6 && r.height >= vh * 0.12 };
+        })
+        .filter((k) => k.ok)
+        .map((k) => ({ el: k.el, top: k.r.top + scrollY, height: k.r.height }))
+        .sort((a, b) => a.top - b.top);
+      const merged = [];
+      for (const item of landmarks) {
+        const prev = merged[merged.length - 1];
+        if (prev && item.top >= prev.top - 2 && item.top + item.height <= prev.top + prev.height + 2) continue;
+        if (prev && prev.top >= item.top - 2 && prev.top + prev.height <= item.top + item.height + 2) {
+          merged[merged.length - 1] = item;
+          continue;
+        }
+        merged.push(item);
+      }
+      if (merged.length >= 3 && merged.reduce((s, x) => s + x.height, 0) >= docH * 0.45) {
+        list = merged.map((m) => m.el);
+      }
+    }
+
+    // Ordenar por posición "de flujo". Un host fijo no ocupa espacio en el
+    // documento (position: fixed), así que sus secciones tienen tops relativos
+    // al contenido y los hermanos normales que van después (p. ej. el footer)
+    // quedarían antes que ellos. Se compensa sumando la altura del host.
+    const fixedHosts = [...document.body.querySelectorAll("*")].filter((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.height < vh * 0.5) return false;
+      const cs = getComputedStyle(el);
+      return (cs.position === "fixed" || cs.position === "sticky") && isContentHost(el);
+    });
+    const contentHeight = (el) => {
+      const r = el.getBoundingClientRect();
+      let h = el.scrollHeight;
+      for (const c of el.children) {
+        const cr = c.getBoundingClientRect();
+        h = Math.max(h, cr.top - r.top + cr.height);
+      }
+      return Math.max(h, r.height);
+    };
+    const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const topOf = (el) => {
+      const r = el.getBoundingClientRect();
+      let top = r.top + scrollY;
+      const host = fixedHosts.find((h) => h === el || h.contains(el));
+      if (!host) {
+        for (const h of fixedHosts) {
+          if (h !== el && !h.contains(el) && follows(h, el)) top += contentHeight(h);
+        }
+      }
+      return top;
+    };
+
     list = list
-      .map((el) => ({ el, top: el.getBoundingClientRect().top + scrollY, height: el.getBoundingClientRect().height }))
+      .map((el) => ({ el, top: topOf(el), height: el.getBoundingClientRect().height }))
       .sort((a, b) => a.top - b.top);
     let virtual = false;
     if (list.length < 2) {
@@ -221,6 +333,47 @@ export function probeLib() {
         },
       };
     })[0];
+  };
+
+  // ---------- scroll ----------
+  // No toda la página se desplaza con window.scrollTo: los sitios con un
+  // contenedor fijo (ScrollSmoother, Lenis con wrapper, apps de scroll propio)
+  // hacen scroll dentro de un elemento. Se resuelve el host real una vez.
+  W.scrollHost = () => {
+    const doc = document.scrollingElement || document.documentElement;
+    if (doc.scrollHeight > innerHeight + 10) return doc;
+    if (W._scrollHost && W._scrollHost.isConnected) return W._scrollHost;
+    let best = null, bestH = 0;
+    for (const el of document.body.querySelectorAll("*")) {
+      if (el.scrollHeight <= el.clientHeight + 20) continue;
+      const cs = getComputedStyle(el);
+      if (cs.overflowY === "visible") continue;
+      if (el.scrollHeight > bestH) { best = el; bestH = el.scrollHeight; }
+    }
+    W._scrollHost = best || doc;
+    return W._scrollHost;
+  };
+  W.isDocHost = (host) => host === document.documentElement || host === document.body || host === document.scrollingElement;
+  W.scrollTo = (y) => {
+    const host = W.scrollHost();
+    if (W.isDocHost(host)) {
+      window.scrollTo(0, y);
+      return window.scrollY;
+    }
+    host.scrollTop = y;
+    return host.scrollTop;
+  };
+  W.scrollY = () => {
+    const host = W.scrollHost();
+    return W.isDocHost(host) ? window.scrollY : host.scrollTop;
+  };
+  W.sectionTop = (i) => {
+    const s = (W.secs || [])[i];
+    if (!s) return 0;
+    if (!s.el) return s.top || 0;
+    const host = W.scrollHost();
+    if (W.isDocHost(host)) return s.el.getBoundingClientRect().top + window.scrollY;
+    return s.el.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
   };
 
   // ---------- tipografía + color + efectos (una sola pasada) ----------
@@ -652,7 +805,7 @@ export function probeLib() {
   // Una parada: fija el scroll, y muestrea cada frame durante `dwell` ms.
   W.motionStop = async (y, dwell, maxDwell) => {
     const vh = innerHeight;
-    window.scrollTo(0, y);
+    W.scrollTo(y);
     const t0 = await frame();
     const live = [];
     for (const c of W.cands) {
@@ -786,12 +939,19 @@ export function probeLib() {
     return null;
   };
 
-  W.pageMetrics = () => ({
-    vw: innerWidth, vh: innerHeight,
-    docHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
-    title: document.title, lang: document.documentElement.lang || "",
-    overflowX: Math.max(0, document.documentElement.scrollWidth - innerWidth),
-  });
+  W.pageMetrics = () => {
+    const docH = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+    // Con un contenedor de scroll fijo (ScrollSmoother, etc.) el documento no
+    // crece: la altura real la dan las secciones medidas dentro del contenedor.
+    let secH = 0;
+    for (const s of W.secs || []) secH = Math.max(secH, (s.top || 0) + (s.height || 0));
+    return {
+      vw: innerWidth, vh: innerHeight,
+      docHeight: Math.max(docH, secH),
+      title: document.title, lang: document.documentElement.lang || "",
+      overflowX: Math.max(0, document.documentElement.scrollWidth - innerWidth),
+    };
+  };
 
   // ---------- elementos fijos / sticky (nav, header, footer fijo) ----------
   // Antes se excluían de findSections (position: fixed), así que el nav/header

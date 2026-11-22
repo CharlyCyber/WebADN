@@ -315,7 +315,11 @@ export function composeKitPrompt({ fingerprint, niche, url, clientBrief = null }
   L.push("- `webadn compare` ≥ 85 global y ninguna dimensión por debajo de 70.");
   L.push("- Sin scroll horizontal accidental en 390px.");
   L.push(`- Ningún texto, imagen ni marca de la referencia: todo el contenido es original de «${niche}».`);
-  if (fingerprint.errors?.length) L.push("", "## Avisos de la medición", "", ...fingerprint.errors.map((e) => `- ${e.viewport}: ${e.message}`));
+  if (fingerprint.errors?.length || fingerprint.warnings?.length) {
+    L.push("", "## Avisos de la medición", "");
+    for (const e of fingerprint.errors || []) L.push(`- ${e.viewport}: ${e.message}`);
+    for (const w of fingerprint.warnings || []) L.push(`- ${w.viewport}: ${w.message}`);
+  }
   return L.join("\n") + "\n";
 }
 

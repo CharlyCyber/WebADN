@@ -8,6 +8,7 @@ import { probeHoverInteractions } from "./interactionProbe.js";
 import { inspectWebGL } from "./webglInspector.js";
 import { detectWebGLAnimations } from "./webglTimeDetector.js";
 import { handleOverlays } from "./overlayHandler.js";
+import { waitForLoadingOverlays, hideLoadingOverlays } from "./loadingOverlay.js";
 import { navigateWithFallback } from "../support/navigation.js";
 import { join } from "node:path";
 import { extractStyles } from "./styleExtractor.js";
@@ -73,27 +74,12 @@ async function preparePageForExtraction(page, onProgress, preset = "standard") {
           requestAnimationFrame(step);
         });
       }
-
-      const isVisible = (el) => {
-        const s = getComputedStyle(el);
-        return el.getBoundingClientRect().width > 0 && s.display !== "none" && s.visibility !== "hidden" && parseFloat(s.opacity) > 0.1;
-      };
-
-      await new Promise(r => {
-        const start = Date.now();
-        const check = () => {
-          const loaders = [...document.querySelectorAll('*')].filter(el => {
-            const id = (el.id || "").toLowerCase();
-            const cls = [...el.classList].join(" ").toLowerCase();
-            return (id + cls).match(/loader|spinner|preload/) && isVisible(el);
-          });
-          if (loaders.length === 0 || Date.now() - start > 3000) r();
-          else setTimeout(check, 100);
-        };
-        check();
-      });
     }, preset === "surgical");
   } catch (err) {}
+  // Espera a que el preloader se vaya; si se queda colgado (fuentes/asset que
+  // nunca termina en headless) lo ocultamos para que las capturas midan la
+  // página real y no la pantalla de carga.
+  await waitForLoadingOverlays(page, { timeoutMs: 6000 }).catch(() => {});
   await page.waitForTimeout(1500);
 }
 
@@ -337,6 +323,7 @@ export async function inspectUrl({ url, headless = true, timeoutMs = 30000, pres
     result.overlayActions = overlayActions;
 
     onProgress?.({ step: "sections", message: "Mapeando secciones..." });
+    await hideLoadingOverlays(page).catch(() => {});
     const sections = await mapSections(page);
     result.sections = sections;
 
@@ -381,6 +368,7 @@ onProgress?.({ step: "css-features", message: "Analizando features CSS..." });
       }
 
       onProgress?.({ step: "screenshots", message: "Capturando viewports..." });
+      await hideLoadingOverlays(page).catch(() => {});
       const screenshotTimeout = Number(process.env.SCREENSHOT_TIMEOUT_MS || 90000);
       let screenshotTimer;
       const visualEvidence = await Promise.race([

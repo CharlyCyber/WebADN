@@ -7,6 +7,7 @@ import { probeLib } from "./probeLib.js";
 import { analyzeMotion } from "./motionAnalysis.js";
 import { decodePng } from "./colorQuantizer.js";
 import { handleOverlays } from "./overlayHandler.js";
+import { waitForLoadingOverlays, hideLoadingOverlays } from "./loadingOverlay.js";
 import { probeInteractionContract } from "./interactionContract.js";
 
 export const FINGERPRINT_VERSION = 1;
@@ -75,7 +76,7 @@ async function probeHover(page, depth, vp) {
   let cursor = null;
   for (const t of targets) {
     try {
-      await page.evaluate((y) => window.scrollTo(0, y), Math.max(0, t.docTop - vp.height / 2));
+      await page.evaluate((y) => window.__WADN.scrollTo(y), Math.max(0, t.docTop - vp.height / 2));
       await page.mouse.move(2, 2);
       await page.waitForTimeout(220);
       const before = await page.evaluate((id) => window.__WADN.hoverSnap(id), t.id);
@@ -135,25 +136,37 @@ async function probeViewport(browser, url, name, opts) {
     }
     await page.evaluate(() => Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 4000))])).catch(() => {});
     await page.waitForTimeout(opts.settleMs ?? 1800);
+    // Algunos sitios (GSAP, Lenis, Nuxt...) mantienen un preloader a pantalla
+    // completa si una fuente o un asset tarda. Esperamos a que se vaya y, si se
+    // queda colgado, lo ocultamos: si no, TODAS las capturas son el loader.
+    const firstLoad = await waitForLoadingOverlays(page, { timeoutMs: Math.max(4000, depth.intro) }).catch(() => ({ forced: [] }));
+    if (firstLoad.forced?.length) progress("Pantalla de carga bloqueada: ocultándola para medir el contenido...");
     await handleOverlays(page).catch(() => {});
     await page.evaluate(probeLib);
+    // Secciones antes de medir la altura: con un contenedor de scroll fijo el
+    // documento mide una pantalla, pero el contenido real es mucho más alto.
+    await page.evaluate(() => window.__WADN.findSections()).catch(() => {});
 
     const metrics0 = await page.evaluate(() => window.__WADN.pageMetrics());
     // Pre-scroll rápido: dispara lazy-load para que la altura del documento sea la real.
     const pre = Math.min(metrics0.docHeight, vp.height * 40);
-    for (let y = 0; y < pre; y += vp.height * 0.9) { await page.evaluate((v) => window.scrollTo(0, v), y); await page.waitForTimeout(60); }
-    await page.evaluate(() => window.scrollTo(0, 0));
+    for (let y = 0; y < pre; y += vp.height * 0.9) { await page.evaluate((v) => window.__WADN.scrollTo(v), y); await page.waitForTimeout(60); }
+    await page.evaluate(() => window.__WADN.scrollTo(0));
     await page.waitForTimeout(500);
     // El pre-scroll ya disparó las entradas "una sola vez": recargamos para medirlas limpias.
     await page.reload({ waitUntil: "load", timeout: opts.timeoutMs }).catch(() => {});
     await page.evaluate(() => Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))])).catch(() => {});
     progress("Midiendo animación de carga...");
     await page.waitForTimeout(depth.intro + 300);
+    // Tras el reload el preloader vuelve a aparecer: repetimos la espera.
+    const reLoad = await waitForLoadingOverlays(page, { timeoutMs: depth.intro + 3000 }).catch(() => ({ forced: [] }));
+    if (reLoad.forced?.length) progress("Pantalla de carga bloqueada: ocultándola para medir el contenido...");
     await handleOverlays(page).catch(() => {});
+    await hideLoadingOverlays(page).catch(() => {});
     await page.evaluate(probeLib);
 
-    const metrics = await page.evaluate(() => window.__WADN.pageMetrics());
     await page.evaluate(() => { window.__WADN.findSections(); window.__WADN.pickCandidates(450); });
+    const metrics = await page.evaluate(() => window.__WADN.pageMetrics());
 
     // ---- pasada de movimiento ----
     const maxY = Math.max(0, metrics.docHeight - vp.height);
@@ -166,7 +179,7 @@ async function probeViewport(browser, url, name, opts) {
     const rawMotion = await page.evaluate(() => window.__WADN.motionResult());
 
     // ---- estático (con todo ya revelado) ----
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => window.__WADN.scrollTo(0));
     await page.waitForTimeout(400);
     progress("Midiendo secciones, tipografía, color y efectos...");
     await page.evaluate(() => window.__WADN.findSections());
@@ -176,8 +189,10 @@ async function probeViewport(browser, url, name, opts) {
     // Cada sección se describe y captura CON EL SCROLL EN ELLA: así los
     // transforms ligados al scroll están en su estado real, no en el de scroll 0.
     for (const t of tops) {
-      await page.evaluate((y) => window.scrollTo(0, y), Math.min(t.top, maxY));
+      await page.evaluate((y) => window.__WADN.scrollTo(y), Math.min(t.top, maxY));
       await page.waitForTimeout(380);
+      // Si el sitio re-muestra un loader al scroll, lo volvemos a ocultar.
+      if (reLoad.forced?.length) await hideLoadingOverlays(page).catch(() => {});
       const s = await page.evaluate((i) => window.__WADN.describeSection(i), t.index);
       if (!s) continue;
       s.top = t.top; s.height = t.height;
@@ -185,9 +200,19 @@ async function probeViewport(browser, url, name, opts) {
       if (plan) { s.elements = plan.elements; s.container = plan.container; }
       if (sections.length < depth.shots) {
         try {
-          const scrolled = await page.evaluate(() => window.scrollY);
-          const offset = Math.max(0, Math.min(vp.height - 40, t.top - scrolled));
-          const h = Math.max(40, Math.min(vp.height - offset, t.height));
+          // Usamos el rect ACTUAL de la sección (no el top medido a scroll 0):
+          // el lazy-load y los banners pueden desplazar el layout durante la pasada.
+          const current = await page.evaluate((i) => {
+            const sec = (window.__WADN.secs || [])[i];
+            if (!sec || !sec.el) return null;
+            const r = sec.el.getBoundingClientRect();
+            return { top: r.top, height: r.height };
+          }, t.index).catch(() => null);
+          const scrolled = await page.evaluate(() => window.__WADN.scrollY());
+          const sectionTop = current ? current.top : t.top - scrolled;
+          const sectionHeight = current ? current.height : t.height;
+          const offset = Math.max(0, Math.min(vp.height - 40, sectionTop));
+          const h = Math.max(40, Math.min(vp.height - offset, sectionHeight));
           const file = `${opts.prefix || ""}${name}-s${String(t.index).padStart(2, "0")}.png`;
           const path = opts.shotsDir ? join(opts.shotsDir, file) : undefined;
           const buf = await page.screenshot({ clip: { x: 0, y: offset, width: vp.width, height: h }, path, timeout: 15000, animations: "allow" });
@@ -197,7 +222,7 @@ async function probeViewport(browser, url, name, opts) {
       }
       sections.push(s);
     }
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => window.__WADN.scrollTo(0));
     await page.waitForTimeout(300);
     const style = await page.evaluate(() => window.__WADN.describeStyle());
     const fontSources = await page.evaluate(() => window.__WADN.fontSources()).catch(() => null);
@@ -228,6 +253,7 @@ async function probeViewport(browser, url, name, opts) {
         reveals: motion.reveals, scrubs: motion.scrubs, pins: motion.pins, loops: motion.loops, fixed: motion.fixed,
       },
       hover,
+      loading: { forced: reLoad.forced?.length || 0, overlays: reLoad.overlays?.length || 0 },
     };
   } finally {
     await context.close().catch(() => {});
@@ -261,6 +287,15 @@ export async function captureFingerprint(opts) {
   if (!Object.keys(fingerprint.viewports).length) {
     throw new Error(fingerprint.errors[0]?.message || "No se pudo medir el sitio.");
   }
+  // Avisos de medición: sirven para que el kit explique por qué una referencia
+  // tiene pocas secciones o por qué una pantalla de carga tuvo que ocultarse.
+  const warnings = [];
+  for (const [name, vp] of Object.entries(fingerprint.viewports)) {
+    const count = vp.sections?.length || 0;
+    if (count < 3) warnings.push({ viewport: name, message: `Solo se detectaron ${count} sección(es). Revisa que el contenido no esté dentro de un contenedor fijo o cargado por JS.` });
+    if (vp.loading?.forced) warnings.push({ viewport: name, message: `Se ocultó una pantalla de carga que no terminaba (${vp.loading.forced} elemento(s)); las capturas muestran el contenido real.` });
+  }
+  if (warnings.length) fingerprint.warnings = warnings;
   return fingerprint;
 }
 
