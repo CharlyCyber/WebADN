@@ -134,3 +134,30 @@ test("findSections conserva un flujo normal sin wrapper fijo", () => {
     assert.equal(W.secs[3].el, footer);
   });
 });
+
+test("findSections divide un contenedor de scroll fijo con secciones como hijos directos", () => {
+  const sections = Array.from({ length: 8 }, (_, i) => new El({
+    tag: "section",
+    rect: { width: 1440, height: i < 5 ? 924 : 900, top: i < 5 ? i * 924 : 5 * 924 + (i - 5) * 900 },
+    children: [new El({ tag: "h2", rect: { width: 800, height: 80 } })],
+  }));
+  const app = new El({
+    tag: "div", id: "app", rect: { width: 1440, height: 900, top: 0 },
+    computed: { position: "fixed", overflowY: "auto" },
+    children: sections, scrollHeight: 7321,
+  });
+  const footer = new El({
+    tag: "footer", rect: { width: 1440, height: 420, top: 0 },
+    children: Array.from({ length: 6 }, () => new El({ tag: "a", rect: { width: 100, height: 20 } })),
+  });
+
+  withDom([app, footer], () => {
+    probeLib();
+    const W = globalThis.__WADN;
+    const count = W.findSections();
+    assert.equal(count, 9, "8 secciones directas + footer");
+    assert.equal(W.secs[0].el, sections[0]);
+    assert.equal(W.secs[8].el, footer);
+    assert.ok(W.secs[8].top > W.secs[7].top, "el footer queda después del contenido del contenedor");
+  });
+});
