@@ -5,7 +5,7 @@ import { probeLib } from "../src/modules/probeLib.js";
 // DOM mínimo para probar findSections sin navegador. Cubre lo que usa la
 // sonda: hijos, descendientes, rects, estilos y orden del documento.
 class El {
-  constructor({ tag = "div", id = "", cls = "", rect = {}, children = [], computed = {}, scrollHeight = 0 } = {}) {
+  constructor({ tag = "div", id = "", cls = "", rect = {}, children = [], computed = {}, scrollHeight = 0, clientHeight, attrs = {} } = {}) {
     this.tagName = tag.toUpperCase();
     this.id = id;
     this.className = cls;
@@ -16,7 +16,16 @@ class El {
       display: "block", visibility: "visible", position: "static", ...computed,
     };
     this.scrollHeight = scrollHeight || this.rect.height;
+    this.clientHeight = clientHeight ?? this.rect.height;
+    this.attrs = { ...attrs };
     this.style = { setProperty() {} };
+  }
+  getAttribute(name) { return name in this.attrs ? this.attrs[name] : null; }
+  hasAttribute(name) { return name in this.attrs; }
+  closest(sel) {
+    if (sel !== "[data-wadn-loader]") return null;
+    for (let n = this; n; n = n.parentElement) if (n.attrs && "data-wadn-loader" in n.attrs) return n;
+    return null;
   }
   getBoundingClientRect() {
     return { ...this.rect, right: this.rect.left + this.rect.width, bottom: this.rect.top + this.rect.height };
@@ -159,5 +168,69 @@ test("findSections divide un contenedor de scroll fijo con secciones como hijos 
     assert.equal(W.secs[0].el, sections[0]);
     assert.equal(W.secs[8].el, footer);
     assert.ok(W.secs[8].top > W.secs[7].top, "el footer queda después del contenido del contenedor");
+  });
+});
+
+test("findSections divide una raíz de app que recorta el contenido y salta el preloader", () => {
+  // Reproduce accentboissons.com: #__nuxt mide una pantalla (height:100vh +
+  // overflow:hidden) y dentro viven el preloader y TODA la página. El preloader
+  // ya está oculto y marcado por la sonda; sin embargo la raíz no se dividía y
+  // el kit quedaba en "div + #__nuxt".
+  const sections = Array.from({ length: 6 }, (_, i) => new El({
+    tag: "section",
+    rect: { width: 1440, height: 900, top: i * 900 },
+    children: [new El({ tag: "h2", rect: { width: 800, height: 80 } })],
+  }));
+  const page = new El({
+    tag: "div", cls: "page", rect: { width: 1440, height: 6300, top: 0 },
+    children: [...sections, new El({ tag: "footer", rect: { width: 1440, height: 420, top: 5400 }, children: Array.from({ length: 6 }, () => new El({ tag: "a", rect: { width: 100, height: 20 } })) })],
+    scrollHeight: 6300,
+  });
+  const loader = new El({
+    tag: "div", cls: "intro", rect: { width: 1440, height: 900, top: 0 },
+    computed: { position: "fixed", zIndex: "9999" }, attrs: { "data-wadn-loader": "1" },
+    children: [
+      new El({ tag: "h1", rect: { width: 400, height: 80 } }),
+      new El({ tag: "img", rect: { width: 1440, height: 900 } }),
+    ],
+  });
+  const app = new El({
+    tag: "div", id: "__nuxt", cls: "lenis lenis-stopped",
+    rect: { width: 1440, height: 900, top: 0 },
+    computed: { overflowY: "hidden" }, clientHeight: 900, scrollHeight: 6300,
+    children: [loader, page],
+  });
+  const footer = page.children[page.children.length - 1];
+
+  withDom([app], () => {
+    probeLib();
+    const W = globalThis.__WADN;
+    const count = W.findSections();
+    assert.equal(count, 7, "6 secciones + footer, sin el preloader");
+    assert.ok(!W.secs.some((s) => s.el === loader), "el preloader marcado nunca es una sección");
+    assert.equal(W.secs[0].el, sections[0]);
+    assert.equal(W.secs[6].el, footer, "el footer queda al final");
+  });
+});
+
+test("findSections ignora un bloque decorativo vacío", () => {
+  const decorative = new El({
+    tag: "div", rect: { width: 1440, height: 900, top: 0 },
+    computed: { backgroundImage: "none" },
+  });
+  const main = new El({
+    tag: "main", rect: { width: 1440, height: 2700, top: 0 },
+    children: [
+      new El({ tag: "section", rect: { width: 1440, height: 900, top: 0 }, children: [new El({ tag: "h1", rect: { width: 900, height: 90 } })] }),
+      new El({ tag: "section", rect: { width: 1440, height: 900, top: 900 }, children: [new El({ tag: "h2", rect: { width: 800, height: 80 } })] }),
+      new El({ tag: "section", rect: { width: 1440, height: 900, top: 1800 }, children: [new El({ tag: "h2", rect: { width: 800, height: 80 } })] }),
+    ],
+  });
+
+  withDom([decorative, main], () => {
+    probeLib();
+    const W = globalThis.__WADN;
+    assert.equal(W.findSections(), 3);
+    assert.ok(!W.secs.some((s) => s.el === decorative), "una capa vacía no es una sección");
   });
 });
