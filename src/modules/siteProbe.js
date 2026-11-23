@@ -10,7 +10,7 @@ import { handleOverlays } from "./overlayHandler.js";
 import { waitForLoadingOverlays, hideLoadingOverlays } from "./loadingOverlay.js";
 import { probeInteractionContract } from "./interactionContract.js";
 
-export const FINGERPRINT_VERSION = 2;
+export const FINGERPRINT_VERSION = 3;
 
 export const PROBE_VIEWPORTS = {
   desktop: { width: 1440, height: 900, isMobile: false, hasTouch: false,

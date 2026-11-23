@@ -90,7 +90,19 @@ export function probeLib() {
       const ok = shown(el, cs, r) && r.width >= vw * 0.6 && (!fixed || isContentHost(el));
       return { el, r, cs, ok, fixed };
     };
-    const eligible = (k) => k.ok && k.r.height >= minH(k.el);
+    // Un preloader ocultado por la sonda nunca es una sección (queda marcado).
+    const isLoader = (el) => typeof el.closest === "function" && !!el.closest("[data-wadn-loader]");
+    // Un bloque decorativo vacío (capa de color/fondo sin contenido) tampoco:
+    // en una página con preloader atascado es lo único que queda junto a la raíz
+    // de la app y se colaba como "hero".
+    const emptyBlock = (el, cs) => {
+      if (/^(header|nav|footer|main|section|article|aside)$/i.test(el.tagName)) return false;
+      if (el.childElementCount > 0) return false;
+      if ((el.textContent || "").trim()) return false;
+      if (/^(img|video|canvas|svg|picture|iframe|input|button|a)$/i.test(el.tagName)) return false;
+      return cs.backgroundImage === "none";
+    };
+    const eligible = (k) => k.ok && k.r.height >= minH(k.el) && !isLoader(k.el) && !emptyBlock(k.el, k.cs);
 
     let root = document.body;
     for (let i = 0; i < 10; i++) {
@@ -113,7 +125,12 @@ export function probeLib() {
         // contenido (scrollHeight) es mucho más alto. Para decidir si hay que
         // dividirlo hay que usar la altura del contenido, no la del rect.
         const positioned = elCs.position === "fixed" || elCs.position === "absolute" || elCs.position === "sticky";
-        const h = positioned && el.scrollHeight > rectH * 1.5 ? Math.max(rectH, el.scrollHeight) : rectH;
+        // Un contenedor que recorta el contenido (raíz de app con height:100vh y
+        // overflow:hidden) también mide una pantalla: para decidir si hay que
+        // dividirlo hay que usar su altura de contenido.
+        const holdsSections = el.querySelectorAll("section,article,main").length >= 2;
+        const clips = holdsSections && elCs.overflowY !== "visible" && el.scrollHeight > el.clientHeight + 20;
+        const h = (positioned || clips) && el.scrollHeight > rectH * 1.5 ? Math.max(rectH, el.scrollHeight) : rectH;
         const kids = [...el.children].map(info).filter(eligible);
         const cover = kids.reduce((s, k) => s + k.r.height, 0);
         const semantic = kids.filter((k) => /^(section|article|header|footer|main)$/i.test(k.el.tagName)).length;
