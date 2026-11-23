@@ -107,7 +107,13 @@ export function probeLib() {
       const next = [];
       let changed = false;
       for (const el of list) {
-        const h = el.getBoundingClientRect().height;
+        const rectH = el.getBoundingClientRect().height;
+        const elCs = getComputedStyle(el);
+        // Un contenedor de scroll fijo/absoluto mide una pantalla, pero su
+        // contenido (scrollHeight) es mucho más alto. Para decidir si hay que
+        // dividirlo hay que usar la altura del contenido, no la del rect.
+        const positioned = elCs.position === "fixed" || elCs.position === "absolute" || elCs.position === "sticky";
+        const h = positioned && el.scrollHeight > rectH * 1.5 ? Math.max(rectH, el.scrollHeight) : rectH;
         const kids = [...el.children].map(info).filter(eligible);
         const cover = kids.reduce((s, k) => s + k.r.height, 0);
         const semantic = kids.filter((k) => /^(section|article|header|footer|main)$/i.test(k.el.tagName)).length;
@@ -119,8 +125,11 @@ export function probeLib() {
         const parentSemantic = /^(section|article|main)$/i.test(el.tagName);
         const singleWrapper = !parentSemantic && kids.length === 1 &&
           kids[0].r.height >= Math.max(h * 0.7, vh * 1.2);
+        // Carrusel/stack de paneles fijos: el contenedor mide una pantalla,
+        // pero sus hijos son paneles de pantalla completa apilados.
+        const panelStack = positioned && kids.filter((k) => k.r.height >= vh * 0.6).length >= 2;
         const split = cover >= h * 0.65 && (
-          singleWrapper ||
+          singleWrapper || panelStack ||
           (h > vh * 2.2 && kids.length >= 2 && (semantic >= 2 || sectionish >= 2 || tallKids >= 2 || list.length < 3))
         );
         if (split) {

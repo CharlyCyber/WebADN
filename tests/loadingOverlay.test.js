@@ -139,3 +139,19 @@ test("no oculta un fondo fijo con imagen", () => {
     assert.deepEqual(scanLoadingOverlays(false), []);
   });
 });
+
+test("detecta un preloader con titular y porcentaje", () => {
+  const loader = new El({
+    tag: "div", cls: "intro", text: "Accent 0 %", rect: viewport,
+    computed: { position: "fixed", zIndex: "9999" },
+    children: [
+      new El({ tag: "h1", text: "Accent", rect: { width: 400, height: 80 } }),
+      new El({ tag: "span", text: "0 %", rect: { width: 100, height: 40 } }),
+    ],
+  });
+  withDom([loader], () => {
+    const found = scanLoadingOverlays(false);
+    assert.equal(found.length, 1);
+    assert.equal(found[0].cls, "intro");
+  });
+});

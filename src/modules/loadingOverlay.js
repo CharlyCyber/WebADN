@@ -30,7 +30,7 @@ export function scanLoadingOverlays(hide) {
     cs.visibility !== "hidden" &&
     parseFloat(cs.opacity) > 0.04;
   const coversViewport = (r) => r.width >= vw * 0.7 && r.height >= vh * 0.7;
-  const isOverlayPosition = (cs) => cs.position === "fixed" || cs.position === "absolute";
+  const isOverlayPosition = (cs) => cs.position === "fixed" || cs.position === "absolute" || cs.position === "sticky";
 
   // Un contenedor fijo que contiene la página entera (wrapper de smooth scroll,
   // carrusel de secciones, etc.) no debe ocultarse: es el host del contenido.
@@ -68,7 +68,7 @@ export function scanLoadingOverlays(hide) {
     const headingCount = el.querySelectorAll("h1,h2,h3,h4,h5,h6").length;
     // Un texto de carga es corto ("0 %", "100 %", "Loading…"). Un párrafo de
     // contenido no lo es: evita ocultar una sección por contener "loading".
-    const textHit = headingCount === 0 && text.length < 80 && (percentText.test(text) || loadingText.test(text));
+    const textHit = text.length < 80 && (percentText.test(text) || (headingCount === 0 && loadingText.test(text)));
 
     // Solo se ocultan overlays decorativos VACÍOS (cortinas de color). Un
     // fondo fijo con una imagen también cubre la ventana, pero no es un loader.

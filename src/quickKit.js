@@ -6,7 +6,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, join } from "node:path";
-import { captureFingerprint } from "./modules/siteProbe.js";
+import { captureFingerprint, FINGERPRINT_VERSION } from "./modules/siteProbe.js";
 import { writeKit, KIT_DIR, REF_SHOT_PREFIX } from "./modules/buildKit.js";
 import { createRunFolder, ensureRunFolders, findRecentRun, pruneOldRuns, updateRunsIndex, RUNS_DIR } from "./support/artifacts.js";
 import { checkRobotsTxt } from "./support/robotsChecker.js";
@@ -50,10 +50,13 @@ export async function runQuickKit(config) {
   const niche = String(config.niche || "").trim() || (document ? DOCUMENT_NICHE : "");
   if (!niche) throw new Error("Indica tu nicho o adjunta un documento con la información del negocio.");
   const briefKey = `${niche}|${config.notes || ""}|${document ? createHash("sha1").update(document).digest("hex").slice(0, 12) : ""}`;
+  // La versión de la sonda forma parte de la clave de caché: si cambia el
+  // algoritmo de medición, no se reutiliza un kit generado con el anterior.
+  const cachePreset = `quick-${preset}-v${FINGERPRINT_VERSION}`;
   const progress = (step, message) => config.onProgress?.({ step, message });
 
   if (!config.force) {
-    const recent = await findRecentRun(config.url, briefKey, `quick-${preset}`, 120);
+    const recent = await findRecentRun(config.url, briefKey, cachePreset, 120);
     if (recent) {
       try {
         progress("cache", "Extracción reciente encontrada.");
@@ -68,7 +71,7 @@ export async function runQuickKit(config) {
     if (!robots.allowed) throw new Error(`${robots.reason || "robots.txt no permite analizar este sitio"}.`);
   }
 
-  const paths = createRunFolder(config.url, briefKey, `quick-${preset}`);
+  const paths = createRunFolder(config.url, briefKey, cachePreset);
   await ensureRunFolders(paths);
 
   progress("browser", "Abriendo el navegador de medición...");

@@ -24,7 +24,7 @@ import { generateFromIR } from "./modules/irCodegen.js";
 import { classifySiteCategory } from "./modules/verificationLoop.js";
 import { analyzeScreenshotPixels } from "./modules/screenshotQuality.js";
 import { buildReferenceExperienceIR } from "./modules/referenceIrBuilder.js";
-import { captureFingerprint } from "./modules/siteProbe.js";
+import { captureFingerprint, FINGERPRINT_VERSION } from "./modules/siteProbe.js";
 import { writeKit, KIT_DIR, REF_SHOT_PREFIX } from "./modules/buildKit.js";
 import { basename } from "node:path";
 
@@ -90,7 +90,8 @@ export async function runOrchestrator(config) {
 
 async function runCacheCheck(ctx, config) {
   log("info", "orchestrator", "Iniciando extraccion", { url: config.url, niche: config.niche });
-  const recentPath = await findRecentRun(config.url, config.niche, config.preset || "standard", config.maxAgeMinutes || 120);
+  const cachePreset = `${config.preset || "standard"}-v${FINGERPRINT_VERSION}`;
+  const recentPath = await findRecentRun(config.url, config.niche, cachePreset, config.maxAgeMinutes || 120);
   if (recentPath && !config.force) {
     config.onProgress?.({ step: "cache", message: "Extraccion reciente encontrada. Cargando del cache local..." });
     try {
@@ -130,7 +131,7 @@ async function runRobotsCheck(ctx, config) {
 }
 
 async function runScraper(ctx, config) {
-  const paths = createRunFolder(config.url, config.niche, config.preset || "standard");
+  const paths = createRunFolder(config.url, config.niche, `${config.preset || "standard"}-v${FINGERPRINT_VERSION}`);
   await ensureRunFolders(paths);
   ctx.data.paths = paths;
 
